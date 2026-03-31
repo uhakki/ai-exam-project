@@ -1,0 +1,25 @@
+# AI 시험지 관리 시스템 - 의존성 패키지
+# Streamlit 웹 앱
+streamlit>=1.28.0
+
+# Google Gemini API
+google-generativeai>=0.3.0
+
+# Firebase
+firebase-admin>=6.2.0
+
+# 데이터 처리
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# PDF 처리
+pymupdf>=1.23.0
+
+# PDF 생성 (시험지구성)
+reportlab>=4.0.0
+
+# 유틸리티
+python-dotenv>=1.0.0
+tenacity>=8.2.0
+tqdm>=4.65.0
+json_repair>=0.28.0

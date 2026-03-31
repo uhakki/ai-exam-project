@@ -1,0 +1,42 @@
+# 환경 변수 및 인증 정보
+.env
+firebase_credentials.json
+
+# 데이터 파일 (Firebase로 관리)
+database.json
+inputs/
+outputs/
+logs/
+input/
+output/
+temp_images/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 가상환경
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Claude
+.claude/
