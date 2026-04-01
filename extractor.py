@@ -126,15 +126,25 @@ _api_key: Optional[str] = None
 _model: Optional[genai.GenerativeModel] = None
 
 
-def configure_api(api_key: str) -> None:
-    """Gemini API 설정"""
+MODEL_OPTIONS = {
+    "pro": "gemini-3-pro-preview",      # 고품질, 느림
+    "flash": "gemini-2.0-flash",         # 빠름, 저렴 (권장)
+}
+
+DEFAULT_MODEL = "flash"
+
+
+def configure_api(api_key: str, model_type: str = None) -> None:
+    """Gemini API 설정. model_type: 'pro' (고품질) 또는 'flash' (고속, 기본값)"""
     global _api_key, _model
     _api_key = api_key
     genai.configure(api_key=api_key)
 
-    # 모델 초기화 (gemini-2.0-flash-exp: 최신 고성능 모델)
+    model_type = model_type or DEFAULT_MODEL
+    model_name = MODEL_OPTIONS.get(model_type, MODEL_OPTIONS[DEFAULT_MODEL])
+
     _model = genai.GenerativeModel(
-        model_name="gemini-3-pro-preview",
+        model_name=model_name,
         system_instruction=SYSTEM_PROMPT,
         generation_config={
             "temperature": 0,

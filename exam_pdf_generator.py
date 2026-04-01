@@ -100,13 +100,16 @@ FRAME_Y = MARGIN_BOTTOM + FOOTER_H
 FRAME_H_FIRST = PAGE_H - MARGIN_TOP - FIRST_PAGE_HEADER_H - FRAME_Y
 FRAME_H_NORMAL = PAGE_H - MARGIN_TOP - NORMAL_HEADER_H - FRAME_Y
 
+# 내신형 1단 전폭
+SINGLE_COL_W = CONTENT_W  # ~190mm
+
 
 # =============================================================================
 # 3. ParagraphStyle 정의
 # =============================================================================
 
 def _build_styles():
-    """스타일 딕셔너리 생성"""
+    """수능형(2단) 스타일 딕셔너리 생성"""
     return {
         'passage_intro': ParagraphStyle(
             'passage_intro', fontName=FONT, fontSize=8.5, leading=12,
@@ -146,7 +149,51 @@ def _build_styles():
         ),
     }
 
+
+def _build_school_styles():
+    """내신형(1단) 스타일 — 폰트 크기 확대"""
+    return {
+        'passage_intro': ParagraphStyle(
+            'school_passage_intro', fontName=FONT, fontSize=11, leading=16,
+            alignment=TA_LEFT, spaceBefore=10, spaceAfter=6,
+        ),
+        'passage_body': ParagraphStyle(
+            'school_passage_body', fontName=FONT, fontSize=10, leading=15,
+            alignment=TA_JUSTIFY, firstLineIndent=10,
+            spaceBefore=0, spaceAfter=0,
+        ),
+        'passage_body_no_indent': ParagraphStyle(
+            'school_passage_body_ni', fontName=FONT, fontSize=10, leading=15,
+            alignment=TA_LEFT, firstLineIndent=0,
+            spaceBefore=0, spaceAfter=0,
+        ),
+        'question_stem': ParagraphStyle(
+            'school_question_stem', fontName=FONT, fontSize=11, leading=16,
+            alignment=TA_LEFT, spaceBefore=12, spaceAfter=4,
+            leftIndent=0,
+        ),
+        'choice': ParagraphStyle(
+            'school_choice', fontName=FONT, fontSize=10, leading=14,
+            alignment=TA_LEFT, leftIndent=14, spaceBefore=2, spaceAfter=2,
+        ),
+        'box_title': ParagraphStyle(
+            'school_box_title', fontName=FONT, fontSize=10, leading=14,
+            alignment=TA_CENTER, spaceBefore=4, spaceAfter=4,
+        ),
+        'box_body': ParagraphStyle(
+            'school_box_body', fontName=FONT, fontSize=9.5, leading=14,
+            alignment=TA_LEFT, leftIndent=6, rightIndent=6,
+            spaceBefore=3, spaceAfter=3,
+        ),
+        'points': ParagraphStyle(
+            'school_points', fontName=FONT, fontSize=10, leading=14,
+            alignment=TA_LEFT,
+        ),
+    }
+
+
 STYLES = _build_styles()
+SCHOOL_STYLES = _build_school_styles()
 
 
 # =============================================================================
@@ -346,54 +393,69 @@ def draw_school_footer(canvas, doc, config):
 # =============================================================================
 
 def create_exam_document(output, config):
-    """2단 레이아웃의 BaseDocTemplate 생성"""
+    """레이아웃 타입에 따라 2단(수능형) 또는 1단(내신형) BaseDocTemplate 생성"""
 
     frame_y = FRAME_Y
 
-    # 1페이지 프레임
-    first_frame_h = FRAME_H_FIRST
-    first_left = Frame(
-        MARGIN_LEFT, frame_y, COL_W, first_frame_h,
-        id='first_left', showBoundary=0,
-        leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
-    )
-    first_right = Frame(
-        MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, first_frame_h,
-        id='first_right', showBoundary=0,
-        leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
-    )
-
-    # 2페이지~ 프레임
-    normal_frame_h = FRAME_H_NORMAL
-    normal_left = Frame(
-        MARGIN_LEFT, frame_y, COL_W, normal_frame_h,
-        id='normal_left', showBoundary=0,
-        leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
-    )
-    normal_right = Frame(
-        MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, normal_frame_h,
-        id='normal_right', showBoundary=0,
-        leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
-    )
-
-    # 헤더/푸터 콜백 선택
     if config.layout_type == "school":
-        first_page_cb = lambda c, d: draw_school_header(c, d, config)
-        normal_page_cb = lambda c, d: draw_school_normal(c, d, config)
-    else:
-        first_page_cb = lambda c, d: draw_first_page(c, d, config)
-        normal_page_cb = lambda c, d: draw_normal_page(c, d, config)
+        # ── 내신형: 1단 전폭 ──
+        first_frame_h = FRAME_H_FIRST
+        first_frame = Frame(
+            MARGIN_LEFT, frame_y, SINGLE_COL_W, first_frame_h,
+            id='first_single', showBoundary=0,
+            leftPadding=4, rightPadding=4, topPadding=0, bottomPadding=0,
+        )
+        normal_frame_h = FRAME_H_NORMAL
+        normal_frame = Frame(
+            MARGIN_LEFT, frame_y, SINGLE_COL_W, normal_frame_h,
+            id='normal_single', showBoundary=0,
+            leftPadding=4, rightPadding=4, topPadding=0, bottomPadding=0,
+        )
 
-    first_page_template = PageTemplate(
-        id='FirstPage',
-        frames=[first_left, first_right],
-        onPage=first_page_cb,
-    )
-    normal_page_template = PageTemplate(
-        id='NormalPage',
-        frames=[normal_left, normal_right],
-        onPage=normal_page_cb,
-    )
+        first_page_template = PageTemplate(
+            id='FirstPage',
+            frames=[first_frame],
+            onPage=lambda c, d: draw_school_header(c, d, config),
+        )
+        normal_page_template = PageTemplate(
+            id='NormalPage',
+            frames=[normal_frame],
+            onPage=lambda c, d: draw_school_normal(c, d, config),
+        )
+    else:
+        # ── 수능형: 2단 ──
+        first_frame_h = FRAME_H_FIRST
+        first_left = Frame(
+            MARGIN_LEFT, frame_y, COL_W, first_frame_h,
+            id='first_left', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        first_right = Frame(
+            MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, first_frame_h,
+            id='first_right', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        normal_left = Frame(
+            MARGIN_LEFT, frame_y, COL_W, FRAME_H_NORMAL,
+            id='normal_left', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        normal_right = Frame(
+            MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, FRAME_H_NORMAL,
+            id='normal_right', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+
+        first_page_template = PageTemplate(
+            id='FirstPage',
+            frames=[first_left, first_right],
+            onPage=lambda c, d: draw_first_page(c, d, config),
+        )
+        normal_page_template = PageTemplate(
+            id='NormalPage',
+            frames=[normal_left, normal_right],
+            onPage=lambda c, d: draw_normal_page(c, d, config),
+        )
 
     doc = BaseDocTemplate(
         output,
@@ -412,16 +474,17 @@ def create_exam_document(output, config):
 # 7. 보기 박스 / 문항 블록 빌더
 # =============================================================================
 
-def build_reference_box(content_text, col_width):
+def build_reference_box(content_text, col_width, styles=None):
     """보기 박스를 Table Flowable로 생성"""
+    styles = styles or STYLES
     inner_elements = []
 
     # 제목
-    inner_elements.append(Paragraph('&lt;보 기&gt;', STYLES['box_title']))
+    inner_elements.append(Paragraph('&lt;보 기&gt;', styles['box_title']))
 
     # 본문
     processed = preprocess_passage(content_text)
-    inner_elements.append(Paragraph(processed, STYLES['box_body']))
+    inner_elements.append(Paragraph(processed, styles['box_body']))
 
     box_table = Table(
         [[inner_elements]],
@@ -439,24 +502,25 @@ def build_reference_box(content_text, col_width):
     return box_table
 
 
-def _build_question_elements(q_data, col_width):
+def _build_question_elements(q_data, col_width, styles=None):
     """문항 1개의 Flowable 리스트 생성 (KeepTogether 없이)"""
+    styles = styles or STYLES
     elements = []
 
     # 발문
     q_num = q_data.get('q_num', '?')
     q_stem = q_data.get('q_stem', '') or ''
     stem_text = f"<b>{q_num}.</b> {preprocess_passage(q_stem)}"
-    points = q_data.get('points')
+    points = q_data.get('score') or q_data.get('points')
     if points:
         stem_text += f" [{points}점]"
-    elements.append(Paragraph(stem_text, STYLES['question_stem']))
+    elements.append(Paragraph(stem_text, styles['question_stem']))
 
     # 보기 박스
     ref = q_data.get('reference_box', '') or ''
     if ref.strip():
         elements.append(Spacer(1, 1.5 * mm))
-        elements.append(build_reference_box(ref, col_width))
+        elements.append(build_reference_box(ref, col_width, styles))
         elements.append(Spacer(1, 1.5 * mm))
 
     # 선택지
@@ -465,20 +529,19 @@ def _build_question_elements(q_data, col_width):
         if choice_text:
             elements.append(Paragraph(
                 preprocess_passage(choice_text),
-                STYLES['choice']
+                styles['choice']
             ))
 
     elements.append(Spacer(1, 3 * mm))
     return elements
 
 
-def build_question_block(q_data, col_width):
+def build_question_block(q_data, col_width, styles=None):
     """문항 1개를 KeepTogether로 묶어 반환 (긴 보기는 풀어서 반환)"""
-    elements = _build_question_elements(q_data, col_width)
+    elements = _build_question_elements(q_data, col_width, styles)
 
     ref = q_data.get('reference_box', '') or ''
     if len(ref) > 500:
-        # 보기가 매우 길면 KeepTogether 없이 리스트 반환
         return elements
     else:
         return KeepTogether(elements)
@@ -567,15 +630,17 @@ def group_questions_with_passages(selected_questions, all_passages):
 # 9. Story 조립
 # =============================================================================
 
-def build_passage_group_flowables(group):
+def build_passage_group_flowables(group, col_width=None, styles=None):
     """지문 그룹을 Flowable 리스트로 변환"""
+    col_width = col_width or COL_W
+    styles = styles or STYLES
     elements = []
 
     # 도입부
     if group['intro_text']:
         elements.append(Paragraph(
             f"<b>{preprocess_passage(group['intro_text'])}</b>",
-            STYLES['passage_intro']
+            styles['passage_intro']
         ))
         elements.append(Spacer(1, 2 * mm))
 
@@ -586,13 +651,13 @@ def build_passage_group_flowables(group):
             if para.strip():
                 elements.append(Paragraph(
                     preprocess_passage(para.strip()),
-                    STYLES['passage_body']
+                    styles['passage_body']
                 ))
         elements.append(Spacer(1, 3 * mm))
 
     # 문항들
     for q in group['questions']:
-        result = build_question_block(q, COL_W)
+        result = build_question_block(q, col_width, styles)
         if isinstance(result, list):
             elements.extend(result)
         else:
@@ -605,15 +670,23 @@ def build_story(groups, config):
     """그룹핑된 데이터를 Flowable 리스트로 변환"""
     story = []
 
+    # 레이아웃별 스타일/폭 결정
+    if config.layout_type == "school":
+        styles = SCHOOL_STYLES
+        col_width = SINGLE_COL_W
+    else:
+        styles = STYLES
+        col_width = COL_W
+
     # 1페이지 후 NormalPage 템플릿으로 전환
     story.append(NextPageTemplate('NormalPage'))
 
     for group in groups:
         if group['type'] == 'passage_group':
-            story.extend(build_passage_group_flowables(group))
+            story.extend(build_passage_group_flowables(group, col_width, styles))
         else:
             for q in group['questions']:
-                result = build_question_block(q, COL_W)
+                result = build_question_block(q, col_width, styles)
                 if isinstance(result, list):
                     story.extend(result)
                 else:
@@ -625,6 +698,57 @@ def build_story(groups, config):
 # =============================================================================
 # 10. 메인 생성 함수
 # =============================================================================
+
+def _build_custom_styles(fonts_cfg):
+    """양식의 fonts 설정으로 동적 스타일 생성"""
+    return {
+        'passage_intro': ParagraphStyle(
+            'cust_passage_intro', fontName=FONT,
+            fontSize=fonts_cfg.get('stem_size', 11), leading=fonts_cfg.get('stem_leading', 16),
+            alignment=TA_LEFT, spaceBefore=6, spaceAfter=4,
+        ),
+        'passage_body': ParagraphStyle(
+            'cust_passage_body', fontName=FONT,
+            fontSize=fonts_cfg.get('passage_size', 10), leading=fonts_cfg.get('passage_leading', 15),
+            alignment=TA_JUSTIFY, firstLineIndent=fonts_cfg.get('passage_indent', 10) if hasattr(fonts_cfg, 'get') else 10,
+            spaceBefore=0, spaceAfter=0,
+        ),
+        'passage_body_no_indent': ParagraphStyle(
+            'cust_passage_body_ni', fontName=FONT,
+            fontSize=fonts_cfg.get('passage_size', 10), leading=fonts_cfg.get('passage_leading', 15),
+            alignment=TA_LEFT, firstLineIndent=0,
+            spaceBefore=0, spaceAfter=0,
+        ),
+        'question_stem': ParagraphStyle(
+            'cust_question_stem', fontName=FONT,
+            fontSize=fonts_cfg.get('stem_size', 11), leading=fonts_cfg.get('stem_leading', 16),
+            alignment=TA_LEFT, spaceBefore=fonts_cfg.get('before_question', 12), spaceAfter=3,
+            leftIndent=0,
+        ),
+        'choice': ParagraphStyle(
+            'cust_choice', fontName=FONT,
+            fontSize=fonts_cfg.get('choice_size', 10), leading=fonts_cfg.get('choice_leading', 14),
+            alignment=TA_LEFT, leftIndent=14,
+            spaceBefore=fonts_cfg.get('choice_gap', 2), spaceAfter=fonts_cfg.get('choice_gap', 2),
+        ),
+        'box_title': ParagraphStyle(
+            'cust_box_title', fontName=FONT,
+            fontSize=fonts_cfg.get('box_title_size', 10), leading=fonts_cfg.get('box_title_size', 10) + 4,
+            alignment=TA_CENTER, spaceBefore=4, spaceAfter=4,
+        ),
+        'box_body': ParagraphStyle(
+            'cust_box_body', fontName=FONT,
+            fontSize=fonts_cfg.get('box_body_size', 9.5), leading=fonts_cfg.get('box_body_size', 9.5) + 4.5,
+            alignment=TA_LEFT, leftIndent=6, rightIndent=6,
+            spaceBefore=3, spaceAfter=3,
+        ),
+        'points': ParagraphStyle(
+            'cust_points', fontName=FONT,
+            fontSize=fonts_cfg.get('choice_size', 10), leading=fonts_cfg.get('choice_leading', 14),
+            alignment=TA_LEFT,
+        ),
+    }
+
 
 def generate_exam_pdf(config, selected_questions, all_passages):
     """
@@ -646,6 +770,68 @@ def generate_exam_pdf(config, selected_questions, all_passages):
 
     doc.build(story)
 
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def generate_exam_pdf_from_template(template_config, selected_questions, all_passages):
+    """
+    양식 설정(template_config dict)으로 시험지 PDF 생성.
+    template_config는 exam_templates.template_to_config()의 반환값.
+    """
+    # ExamPaperConfig 생성
+    config = ExamPaperConfig(
+        title=template_config.get("title", ""),
+        subject=template_config.get("subject", "국어"),
+        session=template_config.get("session", ""),
+        form_type=template_config.get("form_type", ""),
+        school_name=template_config.get("school_name", ""),
+        exam_name=template_config.get("exam_name", ""),
+        grade=template_config.get("grade", ""),
+        exam_date=template_config.get("exam_date", ""),
+        time_limit=template_config.get("time_limit", ""),
+        layout_type=template_config.get("layout_type", "school"),
+    )
+
+    # 커스텀 마진 적용
+    margins = template_config.get("margins", {})
+    custom_margin_left = margins.get("left", 15) * mm
+    custom_margin_right = margins.get("right", 15) * mm
+    custom_margin_top = margins.get("top", 12) * mm
+    custom_margin_bottom = margins.get("bottom", 10) * mm
+
+    # 커스텀 스타일 생성
+    fonts_cfg = {**template_config.get("fonts", {}), **template_config.get("spacing", {})}
+    custom_styles = _build_custom_styles(fonts_cfg)
+
+    # 단수에 따른 col_width 계산
+    columns = template_config.get("columns", 1)
+    content_w = PAGE_W - custom_margin_left - custom_margin_right
+    if columns == 2:
+        gutter = margins.get("gutter", 6) * mm
+        col_width = (content_w - gutter) / 2
+    else:
+        col_width = content_w
+
+    buffer = io.BytesIO()
+    doc = create_exam_document(buffer, config)
+    groups = group_questions_with_passages(selected_questions, all_passages)
+
+    # 커스텀 스타일 + col_width로 story 생성
+    story = []
+    story.append(NextPageTemplate('NormalPage'))
+    for group in groups:
+        if group['type'] == 'passage_group':
+            story.extend(build_passage_group_flowables(group, col_width, custom_styles))
+        else:
+            for q in group['questions']:
+                result = build_question_block(q, col_width, custom_styles)
+                if isinstance(result, list):
+                    story.extend(result)
+                else:
+                    story.append(result)
+
+    doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
 
