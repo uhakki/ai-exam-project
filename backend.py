@@ -480,7 +480,7 @@ def task_multimodal_verification(file_id: str, filepath: str, page_range: str = 
 
         # Vision 모델 설정 (temperature=0으로 저작권 회피)
         model = genai.GenerativeModel(
-            'gemini-3-pro-preview',
+            'gemini-2.5-pro',
             generation_config={"temperature": 0}
         )
 

@@ -127,8 +127,8 @@ _model: Optional[genai.GenerativeModel] = None
 
 
 MODEL_OPTIONS = {
-    "pro": "gemini-3-pro-preview",      # 고품질, 느림
-    "flash": "gemini-2.0-flash",         # 빠름, 저렴 (권장)
+    "pro": "gemini-2.5-pro",       # 고품질, 느림
+    "flash": "gemini-2.5-flash",   # 빠름, 저렴 (권장)
 }
 
 DEFAULT_MODEL = "flash"
