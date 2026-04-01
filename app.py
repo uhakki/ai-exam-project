@@ -1949,13 +1949,32 @@ elif selected == "시험지구성":
             st.markdown('<div class="content-card"><h4 style="margin:0 0 1rem 0;color:#212529;">선택된 문항</h4>', unsafe_allow_html=True)
 
             if st.session_state.exam_selected_questions:
-                total_score = sum(sq['question_data'].get('score') or sq['question_data'].get('points') or 0 for sq in st.session_state.exam_selected_questions)
+                total_score = sum(
+                    sq.get('custom_score') or sq['question_data'].get('score') or sq['question_data'].get('points') or 0
+                    for sq in st.session_state.exam_selected_questions
+                )
                 score_text = f" / 총 {total_score}점" if total_score else ""
                 st.markdown(f"**{len(st.session_state.exam_selected_questions)}개 문항{score_text}**")
 
-                # 원본 번호 유지 옵션
-                keep_original = st.checkbox("원본 문항번호 유지", value=False, key="keep_original_num",
-                    help="체크 해제 시 PDF에서 1번부터 자동 재번호됩니다")
+                # 옵션: 원본 번호 유지 / 배점 편집
+                opt_col1, opt_col2 = st.columns(2)
+                with opt_col1:
+                    keep_original = st.checkbox("원본 문항번호 유지", value=False, key="keep_original_num",
+                        help="체크 해제 시 PDF에서 1번부터 자동 재번호됩니다")
+                with opt_col2:
+                    edit_scores = st.checkbox("배점 편집", value=False, key="edit_scores",
+                        help="각 문항의 배점을 직접 지정합니다")
+
+                # 배점 편집 모드: 일괄 배점 설정
+                if edit_scores:
+                    sc_col1, sc_col2 = st.columns(2)
+                    with sc_col1:
+                        default_score = st.number_input("기본 배점", min_value=1, max_value=10, value=3, step=1, key="default_score")
+                    with sc_col2:
+                        if st.button("전체 문항에 적용", key="apply_default_score"):
+                            for sq in st.session_state.exam_selected_questions:
+                                sq['custom_score'] = default_score
+                            st.rerun()
 
                 for idx, sq in enumerate(st.session_state.exam_selected_questions):
                     qd = sq['question_data']
@@ -1965,8 +1984,11 @@ elif selected == "시험지구성":
                     if len(qd.get('q_stem', '') or '') > 35:
                         q_stem_short += "..."
                     cat = qd.get('category', '')
-                    score = qd.get('score') or qd.get('points') or ''
-                    score_str = f" {score}점" if score else ""
+
+                    # 배점: custom_score 우선, 없으면 원본
+                    orig_score = qd.get('score') or qd.get('points') or ''
+                    display_score = sq.get('custom_score', orig_score) if edit_scores else orig_score
+                    score_str = f" {display_score}점" if display_score else ""
 
                     # 번호 표시: 재번호 → (원본)
                     if keep_original:
@@ -1974,9 +1996,21 @@ elif selected == "시험지구성":
                     else:
                         num_display = f"<strong>{new_num}번</strong> <span style='color:#999;font-size:0.75rem;'>(원본:{orig_num})</span>"
 
-                    col_a, col_b, col_c, col_d = st.columns([4, 1, 1, 1])
+                    if edit_scores:
+                        col_a, col_score, col_b, col_c, col_d = st.columns([3, 1, 1, 1, 1])
+                    else:
+                        col_a, col_b, col_c, col_d = st.columns([4, 1, 1, 1])
+
                     with col_a:
                         st.markdown(f"<div style='padding:5px 8px;background:#e3f2fd;border-radius:4px;font-size:0.82rem;color:#212529;'>{num_display} <span style='color:#667eea;'>{cat}</span>{score_str}<br/><span style='color:#555;'>{escape_html(q_stem_short)}</span></div>", unsafe_allow_html=True)
+
+                    if edit_scores:
+                        with col_score:
+                            new_score = st.number_input("점", min_value=1, max_value=10,
+                                value=int(sq.get('custom_score', orig_score) or 3),
+                                key=f"score_{sq['id']}", label_visibility="collapsed")
+                            if new_score != sq.get('custom_score'):
+                                sq['custom_score'] = new_score
                     with col_b:
                         if idx > 0 and st.button("↑", key=f"up_{sq['id']}"):
                             lst = st.session_state.exam_selected_questions
@@ -2038,7 +2072,8 @@ elif selected == "시험지구성":
                 qd = sq['question_data']
                 choices_html = ''.join([f'<div style="margin:0.3rem 0;color:#000;">{qd.get(f"choice_{i}", "")}</div>' for i in range(1, 6) if qd.get(f'choice_{i}')])
                 ref_html = f'<div style="background:#f5f5f5;padding:0.75rem;margin:0.5rem 0;border-left:3px solid #333;color:#000;"><strong>[보기]</strong><br/>{qd.get("reference_box", "")}</div>' if qd.get('reference_box') else ''
-                points_html = f' <span style="color:#d93025;">[{qd["points"]}점]</span>' if qd.get('points') else ''
+                display_pts = sq.get('custom_score') or qd.get('points') or qd.get('score') or ''
+                points_html = f' <span style="color:#d93025;">[{display_pts}점]</span>' if display_pts else ''
                 preview_parts.append(f'<div style="margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px dashed #ccc;">')
                 preview_parts.append(f'<p style="margin:0;color:#000;"><strong>{idx+1}.</strong> {qd.get("q_stem", "")}{points_html}</p>')
                 preview_parts.append(ref_html)
@@ -2072,13 +2107,17 @@ elif selected == "시험지구성":
                         layout_type="school",
                     )
 
-                # 선택된 문항의 question_data 리스트 추출 (재번호 적용)
+                # 선택된 문항의 question_data 리스트 추출 (재번호 + 배점 적용)
                 keep_orig = st.session_state.get("keep_original_num", False)
                 selected_q_list = []
                 for idx, sq in enumerate(st.session_state.exam_selected_questions):
                     q_copy = {**sq['question_data']}
                     if not keep_orig:
                         q_copy['q_num'] = idx + 1
+                    # custom_score가 있으면 배점 덮어쓰기
+                    if sq.get('custom_score'):
+                        q_copy['score'] = sq['custom_score']
+                        q_copy['points'] = sq['custom_score']
                     selected_q_list.append(q_copy)
 
                 # 관련 passages 수집 (캐시 + 필요시 재로드)
