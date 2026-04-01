@@ -718,10 +718,45 @@ if selected == "대시보드":
 
         st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
 
-        # 최근 작업 목록
-        st.markdown("### 최근 작업")
+        # 계층 필터
+        st.markdown("### 문서 필터")
+        fcol1, fcol2, fcol3, fcol4, fcol5 = st.columns(5)
+        with fcol1:
+            sl_options = ["전체"] + sorted(df['school_level'].dropna().unique().tolist()) if 'school_level' in df.columns else ["전체"]
+            f_school_level = st.selectbox("학교급", sl_options, key="dash_sl")
+        with fcol2:
+            yr_options = ["전체"] + sorted(df['year'].dropna().unique().tolist(), reverse=True)
+            f_year = st.selectbox("연도", yr_options, key="dash_yr")
+        with fcol3:
+            gr_options = ["전체"] + sorted(df['grade'].dropna().unique().tolist())
+            f_grade = st.selectbox("학년", gr_options, key="dash_gr")
+        with fcol4:
+            sem_options = ["전체"] + sorted(df['semester'].dropna().unique().tolist())
+            f_semester = st.selectbox("학기", sem_options, key="dash_sem")
+        with fcol5:
+            et_options = ["전체"] + sorted(df['exam_type'].dropna().unique().tolist())
+            f_exam_type = st.selectbox("시험유형", et_options, key="dash_et")
 
-        recent = df.sort_values('last_updated', ascending=False).head(10)
+        filtered_df = df.copy()
+        if f_school_level != "전체" and 'school_level' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['school_level'] == f_school_level]
+        if f_year != "전체":
+            filtered_df = filtered_df[filtered_df['year'] == f_year]
+        if f_grade != "전체":
+            filtered_df = filtered_df[filtered_df['grade'] == f_grade]
+        if f_semester != "전체":
+            filtered_df = filtered_df[filtered_df['semester'] == f_semester]
+        if f_exam_type != "전체":
+            filtered_df = filtered_df[filtered_df['exam_type'] == f_exam_type]
+
+        st.markdown(f"**{len(filtered_df)}**개 문서", unsafe_allow_html=True)
+
+        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+
+        # 문서 목록
+        st.markdown("### 문서 목록")
+
+        recent = filtered_df.sort_values('last_updated', ascending=False)
 
         status_kr = STATUS_KR
 
@@ -742,8 +777,9 @@ if selected == "대시보드":
             exam_info = f"{exam_type_val} {school_val}".strip() if school_val else exam_type_val
 
             table_rows.append({
+                "학교급": row.get('school_level', '') or '',
                 "문서": doc_info,
-                "파일명": row.get('filename', '-'),
+                "학교": school_val,
                 "시험유형": exam_info,
                 "상태": status_kr.get(row.get('status', 'Ready'), row.get('status', '')),
                 "진행률": int(row.get('progress', 0)),
@@ -756,8 +792,9 @@ if selected == "대시보드":
             use_container_width=True,
             hide_index=True,
             column_config={
+                "학교급": st.column_config.TextColumn("학교급", width="small"),
                 "문서": st.column_config.TextColumn("문서", width="medium"),
-                "파일명": st.column_config.TextColumn("파일명", width="medium"),
+                "학교": st.column_config.TextColumn("학교", width="small"),
                 "시험유형": st.column_config.TextColumn("시험유형", width="small"),
                 "상태": st.column_config.TextColumn("상태", width="small"),
                 "진행률": st.column_config.ProgressColumn("진행률", min_value=0, max_value=100, width="small"),
@@ -803,8 +840,9 @@ elif selected == "파일 업로드":
             subject = st.text_input("과목", placeholder="예: 국어")
 
         with col2:
+            school_level = st.selectbox("학교급", ["", "중등", "고등"])
             exam_type = st.selectbox("시험 유형", ["", "모의고사", "수능", "중간고사", "기말고사", "기타"])
-            grade = st.selectbox("학년", ["", "고1", "고2", "고3", "중1", "중2", "중3"])
+            grade = st.selectbox("학년", ["", "중1", "중2", "중3", "고1", "고2", "고3"])
 
         with col3:
             # 시험 유형에 따라 다른 필드 표시 (폼 내에서는 조건부 표시 제한이 있어 모두 표시)
@@ -851,6 +889,7 @@ elif selected == "파일 업로드":
                     "month": month if month else "",
                     "semester": semester if semester else "",
                     "school": school if school else "",
+                    "school_level": school_level if school_level else "",
                     "author": author if author else "",
                     "desc": desc,
                     "status": "Ready",
@@ -888,6 +927,17 @@ elif selected == "데이터 처리":
     </div>
     ''', unsafe_allow_html=True)
 
+    # 계층 필터
+    fcol1, fcol2, fcol3, fcol4 = st.columns(4)
+    with fcol1:
+        f_sl = st.selectbox("학교급", ["전체", "중등", "고등"], key="proc_sl")
+    with fcol2:
+        f_yr = st.text_input("연도", placeholder="예: 2025", key="proc_yr")
+    with fcol3:
+        f_gr = st.selectbox("학년", ["전체", "중1", "중2", "중3", "고1", "고2", "고3"], key="proc_gr")
+    with fcol4:
+        f_et = st.selectbox("시험유형", ["전체", "중간고사", "기말고사", "모의고사", "수능"], key="proc_et")
+
     # 상태 필터 (한글 표시, 내부값은 영문 유지)
     status_options = {
         "대기": "Ready",
@@ -920,6 +970,15 @@ elif selected == "데이터 처리":
         ''', unsafe_allow_html=True)
     else:
         filtered = [item for item in db if item['status'] in status_filter]
+        # 계층 필터 적용
+        if f_sl != "전체":
+            filtered = [item for item in filtered if item.get('school_level') == f_sl]
+        if f_yr:
+            filtered = [item for item in filtered if item.get('year') == f_yr]
+        if f_gr != "전체":
+            filtered = [item for item in filtered if item.get('grade') == f_gr]
+        if f_et != "전체":
+            filtered = [item for item in filtered if item.get('exam_type') == f_et]
 
         for item in reversed(filtered):
             status = item['status']
