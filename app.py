@@ -1622,8 +1622,12 @@ elif selected == "시험지구성":
 
                 btn_col1, btn_col2, btn_col3 = st.columns(3)
                 with btn_col1:
-                    if st.button("편집", key=f"edit_{tmpl['template_id']}", use_container_width=True):
-                        st.session_state["editing_template"] = {**tmpl}
+                    if tmpl.get("is_default"):
+                        st.button("편집 불가", key=f"edit_{tmpl['template_id']}", disabled=True, use_container_width=True,
+                            help="기본 양식은 편집할 수 없습니다. 복제 후 편집하세요.")
+                    else:
+                        if st.button("편집", key=f"edit_{tmpl['template_id']}", use_container_width=True):
+                            st.session_state["editing_template"] = {**tmpl}
                 with btn_col2:
                     if st.button("복제", key=f"dup_{tmpl['template_id']}", use_container_width=True):
                         new_id = duplicate_template(tmpl["template_id"])

@@ -429,6 +429,101 @@ def draw_school_normal(canvas, doc, config):
     draw_school_footer(canvas, doc, config)
 
 
+def draw_giparang_header(canvas, doc, config):
+    """기파랑 문해원 1페이지 헤더"""
+    canvas.saveState()
+
+    page_w, page_h = A4
+    cx = page_w / 2
+    left_x = MARGIN_LEFT
+    right_x = page_w - MARGIN_RIGHT
+    top_y = page_h - MARGIN_TOP
+
+    # 상단 외곽선
+    header_bottom = top_y - FIRST_PAGE_HEADER_H + 2 * mm
+    canvas.setLineWidth(1.5)
+    canvas.rect(left_x, header_bottom, right_x - left_x, top_y - header_bottom)
+
+    # 학원명
+    canvas.setFont(FONT, 15)
+    canvas.drawCentredString(cx, top_y - 9 * mm, "기파랑 문해원")
+
+    # 시험명
+    canvas.setFont(FONT, 13)
+    exam_label = "내신대비 문제"
+    if config.exam_name:
+        exam_label = config.exam_name
+    canvas.drawCentredString(cx, top_y - 17 * mm, exam_label)
+
+    # 좌측: 과목/학년 정보
+    canvas.setFont(FONT, 9)
+    info_y = top_y - 25 * mm
+    info_parts = []
+    if config.subject:
+        info_parts.append(f"과목: {config.subject}")
+    if config.grade:
+        info_parts.append(f"학년: {config.grade}")
+    if config.exam_date:
+        info_parts.append(f"일자: {config.exam_date}")
+    canvas.drawString(left_x + 5 * mm, info_y, "  |  ".join(info_parts))
+
+    # 우측: 이름 기입란
+    box_right = right_x - 5 * mm
+    box_w = 50 * mm
+    box_h = 8 * mm
+    box_x = box_right - box_w
+    box_y = top_y - 27 * mm
+    canvas.setLineWidth(0.5)
+    canvas.rect(box_x, box_y, box_w, box_h)
+    canvas.setFont(FONT, 8)
+    canvas.drawString(box_x + 2 * mm, box_y + box_h - 3 * mm, "이름")
+
+    canvas.restoreState()
+    draw_giparang_footer(canvas, doc, config)
+
+
+def draw_giparang_normal(canvas, doc, config):
+    """기파랑 문해원 2페이지~ 헤더"""
+    canvas.saveState()
+
+    page_w, page_h = A4
+    page_num = doc.page
+    cx = page_w / 2
+    header_y = page_h - MARGIN_TOP - 12 * mm
+
+    canvas.setFont(FONT, 9)
+    canvas.drawString(MARGIN_LEFT + 3 * mm, header_y, f"- {page_num} -")
+    canvas.setFont(FONT, 10)
+    canvas.drawCentredString(cx, header_y, config.subject)
+    canvas.setFont(FONT, 9)
+    canvas.drawRightString(page_w - MARGIN_RIGHT - 3 * mm, header_y, "기파랑 문해원")
+
+    line_y = page_h - MARGIN_TOP - NORMAL_HEADER_H + 2 * mm
+    canvas.setLineWidth(0.5)
+    canvas.line(MARGIN_LEFT, line_y, page_w - MARGIN_RIGHT, line_y)
+
+    canvas.restoreState()
+    draw_giparang_footer(canvas, doc, config)
+
+
+def draw_giparang_footer(canvas, doc, config):
+    """기파랑 문해원 푸터"""
+    canvas.saveState()
+    page_w = A4[0]
+
+    footer_line_y = MARGIN_BOTTOM + FOOTER_H - 2 * mm
+    canvas.setLineWidth(0.3)
+    canvas.line(MARGIN_LEFT, footer_line_y, page_w - MARGIN_RIGHT, footer_line_y)
+
+    canvas.setFont(FONT, 9)
+    canvas.drawCentredString(page_w / 2, MARGIN_BOTTOM + 4 * mm, f"- {doc.page} -")
+
+    canvas.setFont(FONT, 6.5)
+    canvas.drawCentredString(page_w / 2, MARGIN_BOTTOM, "기파랑 문해원")
+
+    canvas.restoreState()
+
+
 def draw_school_footer(canvas, doc, config):
     """내신용 푸터"""
     canvas.saveState()
@@ -455,21 +550,87 @@ def create_exam_document(output, config):
 
     frame_y = FRAME_Y
 
-    if config.layout_type == "school":
-        # ── 내신형: 1단 전폭 ──
+    if config.layout_type == "giparang":
+        # ── 기파랑 문해원: 2단 ──
+        first_frame_h = FRAME_H_FIRST
+        first_left = Frame(
+            MARGIN_LEFT, frame_y, COL_W, first_frame_h,
+            id='first_left', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        first_right = Frame(
+            MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, first_frame_h,
+            id='first_right', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        normal_left = Frame(
+            MARGIN_LEFT, frame_y, COL_W, FRAME_H_NORMAL,
+            id='normal_left', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        normal_right = Frame(
+            MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, FRAME_H_NORMAL,
+            id='normal_right', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        first_page_template = PageTemplate(
+            id='FirstPage',
+            frames=[first_left, first_right],
+            onPage=lambda c, d: draw_giparang_header(c, d, config),
+        )
+        normal_page_template = PageTemplate(
+            id='NormalPage',
+            frames=[normal_left, normal_right],
+            onPage=lambda c, d: draw_giparang_normal(c, d, config),
+        )
+
+    elif config.layout_type == "school":
+        # ── 내신형: 2단 ──
+        first_frame_h = FRAME_H_FIRST
+        first_left = Frame(
+            MARGIN_LEFT, frame_y, COL_W, first_frame_h,
+            id='first_left', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        first_right = Frame(
+            MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, first_frame_h,
+            id='first_right', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        normal_left = Frame(
+            MARGIN_LEFT, frame_y, COL_W, FRAME_H_NORMAL,
+            id='normal_left', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+        normal_right = Frame(
+            MARGIN_LEFT + COL_W + GUTTER, frame_y, COL_W, FRAME_H_NORMAL,
+            id='normal_right', showBoundary=0,
+            leftPadding=2, rightPadding=2, topPadding=0, bottomPadding=0,
+        )
+
+        first_page_template = PageTemplate(
+            id='FirstPage',
+            frames=[first_left, first_right],
+            onPage=lambda c, d: draw_school_header(c, d, config),
+        )
+        normal_page_template = PageTemplate(
+            id='NormalPage',
+            frames=[normal_left, normal_right],
+            onPage=lambda c, d: draw_school_normal(c, d, config),
+        )
+    elif config.layout_type == "minimal":
+        # ── 미니멀: 1단 전폭 ──
         first_frame_h = FRAME_H_FIRST
         first_frame = Frame(
             MARGIN_LEFT, frame_y, SINGLE_COL_W, first_frame_h,
             id='first_single', showBoundary=0,
             leftPadding=4, rightPadding=4, topPadding=0, bottomPadding=0,
         )
-        normal_frame_h = FRAME_H_NORMAL
         normal_frame = Frame(
-            MARGIN_LEFT, frame_y, SINGLE_COL_W, normal_frame_h,
+            MARGIN_LEFT, frame_y, SINGLE_COL_W, FRAME_H_NORMAL,
             id='normal_single', showBoundary=0,
             leftPadding=4, rightPadding=4, topPadding=0, bottomPadding=0,
         )
-
         first_page_template = PageTemplate(
             id='FirstPage',
             frames=[first_frame],
@@ -480,6 +641,7 @@ def create_exam_document(output, config):
             frames=[normal_frame],
             onPage=lambda c, d: draw_school_normal(c, d, config),
         )
+
     else:
         # ── 수능형: 2단 ──
         first_frame_h = FRAME_H_FIRST
@@ -728,10 +890,11 @@ def build_story(groups, config):
     story = []
 
     # 레이아웃별 스타일/폭 결정
-    if config.layout_type == "school":
+    if config.layout_type == "minimal":
         styles = SCHOOL_STYLES
         col_width = SINGLE_COL_W
     else:
+        # 수능형, 내신형, 기파랑 모두 2단
         styles = STYLES
         col_width = COL_W
 

@@ -19,16 +19,16 @@ DEFAULT_TEMPLATES = [
     {
         "template_id": "default_school",
         "name": "내신형 기본",
-        "description": "학교 내신 시험지 공식 양식 (1단, A4)",
+        "description": "학교 내신 시험지 공식 양식 (2단, A4)",
         "is_default": True,
         "layout": {
-            "columns": 1,
+            "columns": 2,
             "page_size": "A4",
-            "margin_top": 15,
-            "margin_bottom": 12,
-            "margin_left": 18,
-            "margin_right": 18,
-            "gutter": 0,
+            "margin_top": 18,
+            "margin_bottom": 10,
+            "margin_left": 10,
+            "margin_right": 10,
+            "gutter": 6,
         },
         "header": {
             "style": "school",
@@ -42,20 +42,20 @@ DEFAULT_TEMPLATES = [
             "custom_text": "",
         },
         "fonts": {
-            "passage_size": 10.5,
-            "passage_leading": 16,
-            "stem_size": 11,
-            "stem_leading": 17,
-            "choice_size": 10.5,
-            "choice_leading": 15,
-            "box_title_size": 10.5,
-            "box_body_size": 10,
+            "passage_size": 8.5,
+            "passage_leading": 12.5,
+            "stem_size": 9,
+            "stem_leading": 13,
+            "choice_size": 8.5,
+            "choice_leading": 12,
+            "box_title_size": 8.5,
+            "box_body_size": 8,
         },
         "spacing": {
-            "before_question": 14,
-            "after_question": 4,
-            "choice_gap": 2,
-            "passage_indent": 12,
+            "before_question": 10,
+            "after_question": 3,
+            "choice_gap": 1.5,
+            "passage_indent": 8,
         },
         "exam_info": {
             "school_name": "",
@@ -161,6 +161,56 @@ DEFAULT_TEMPLATES = [
             "grade": "",
         },
     },
+    {
+        "template_id": "default_giparang",
+        "name": "기파랑 문해원",
+        "description": "기파랑 문해원 내신대비 시험지 (2단, A4)",
+        "is_default": True,
+        "layout": {
+            "columns": 2,
+            "page_size": "A4",
+            "margin_top": 18,
+            "margin_bottom": 10,
+            "margin_left": 10,
+            "margin_right": 10,
+            "gutter": 6,
+        },
+        "header": {
+            "style": "giparang",
+            "line_1": "기파랑 문해원",
+            "line_2": "내신대비 문제",
+            "line_3": "{subject}  |  {grade}  |  {exam_name}",
+            "show_border": True,
+        },
+        "footer": {
+            "show_page_number": True,
+            "custom_text": "기파랑 문해원",
+        },
+        "fonts": {
+            "passage_size": 8.5,
+            "passage_leading": 12.5,
+            "stem_size": 9,
+            "stem_leading": 13,
+            "choice_size": 8.5,
+            "choice_leading": 12,
+            "box_title_size": 8.5,
+            "box_body_size": 8,
+        },
+        "spacing": {
+            "before_question": 10,
+            "after_question": 3,
+            "choice_gap": 1.5,
+            "passage_indent": 8,
+        },
+        "exam_info": {
+            "school_name": "기파랑 문해원",
+            "exam_name": "",
+            "subject": "국어",
+            "grade": "",
+            "exam_date": "",
+            "time_limit": "",
+        },
+    },
 ]
 
 
@@ -252,10 +302,14 @@ def template_to_config(template: dict, overrides: dict = None) -> dict:
     columns = layout.get("columns", 1)
     header_style = header.get("style", "school")
 
-    if columns == 2 or header_style == "suneung":
-        layout_type = "suneung"
-    else:
-        layout_type = "school"
+    # header style 기반으로 layout_type 결정
+    style_to_layout = {
+        "suneung": "suneung",
+        "school": "school",
+        "minimal": "minimal",
+        "giparang": "giparang",
+    }
+    layout_type = style_to_layout.get(header_style, "school")
 
     return {
         "layout_type": layout_type,
