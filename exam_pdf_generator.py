@@ -768,7 +768,14 @@ def _build_question_elements(q_data, col_width, styles=None):
     ref = _clean_none(q_data.get('reference_box', ''))
     if ref.strip():
         elements.append(Spacer(1, 1.5 * mm))
-        elements.append(build_reference_box(ref, col_width, styles))
+        if len(ref) > 1500:
+            # 매우 긴 보기: 박스 대신 구분선+텍스트로 렌더링 (칼럼 높이 초과 방지)
+            elements.append(Paragraph('&lt;보 기&gt;', styles['box_title']))
+            for para in preprocess_passage(ref).split('<br/><br/>'):
+                if para.strip():
+                    elements.append(Paragraph(para.strip(), styles['box_body']))
+        else:
+            elements.append(build_reference_box(ref, col_width, styles))
         elements.append(Spacer(1, 1.5 * mm))
 
     # 선택지
