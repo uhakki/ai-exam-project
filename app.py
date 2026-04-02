@@ -977,6 +977,72 @@ elif selected == "데이터 처리":
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
+    # 스마트 검증 패널
+    with st.expander("스마트 검증 (AI 데이터 품질 검수)", expanded=False):
+        st.markdown("추출된 데이터를 규칙+AI로 검수합니다. 원본 PDF 대조 없이 데이터 자체의 품질을 빠르게 확인합니다.")
+        all_db_for_review = get_db()
+        extracted_docs = [d for d in all_db_for_review if d.get('status') in ('Extracted', 'Modified', 'Done')]
+
+        if not extracted_docs:
+            st.info("추출 완료된 문서가 없습니다.")
+        else:
+            review_options = {format_doc_label(d): d['file_id'] for d in extracted_docs}
+            selected_for_review = st.multiselect(
+                "검수할 문서 선택",
+                list(review_options.keys()),
+                default=[],
+                key="smart_review_select"
+            )
+
+            rcol1, rcol2 = st.columns([1, 3])
+            with rcol1:
+                if st.button("검수 실행", key="run_smart_review", type="primary",
+                             disabled=len(selected_for_review) == 0):
+                    file_ids = [review_options[name] for name in selected_for_review]
+                    with st.spinner(f"{len(file_ids)}개 문서 검수 중... (규칙 검증 + AI 리뷰)"):
+                        from backend import task_smart_review
+                        review_results = task_smart_review(file_ids)
+                        st.session_state["smart_review_results"] = review_results
+
+            # 결과 표시
+            if "smart_review_results" in st.session_state:
+                review_results = st.session_state["smart_review_results"]
+                for fid, result in review_results.items():
+                    if isinstance(result, dict) and "issues" in result:
+                        doc_name = result.get("doc_name", fid)
+                        summary = result.get("summary", "")
+                        issues = result.get("issues", [])
+                        q_count = result.get("q_count", 0)
+                        p_count = result.get("p_count", 0)
+
+                        # 색상 결정
+                        critical_count = sum(1 for i in issues if i["type"] == "critical")
+                        if critical_count > 0:
+                            badge_color = "#dc3545"
+                        elif len(issues) > 0:
+                            badge_color = "#ffc107"
+                        else:
+                            badge_color = "#28a745"
+
+                        st.markdown(f"""
+                        <div style="padding:0.5rem 1rem;margin:0.5rem 0;border-left:4px solid {badge_color};background:#f8f9fa;border-radius:4px;">
+                            <strong>{escape_html(doc_name)}</strong>
+                            <span style="color:{badge_color};margin-left:0.5rem;">{summary}</span>
+                            <span style="color:#6c757d;margin-left:0.5rem;font-size:0.8rem;">(문항 {q_count}개, 지문 {p_count}개)</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        if issues:
+                            type_icons = {"critical": "🔴", "warning": "🟡", "ai": "🤖", "info": "ℹ️", "error": "❌"}
+                            for issue in issues:
+                                icon = type_icons.get(issue["type"], "•")
+                                q_label = f"[{issue.get('q_num', '')}] " if issue.get('q_num', '-') != '-' else ""
+                                st.markdown(f"&emsp;{icon} {q_label}{escape_html(issue['msg'])}")
+                        else:
+                            st.markdown("&emsp;✅ 이상 없음")
+
+    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+
     db = get_db()
 
     if not db:

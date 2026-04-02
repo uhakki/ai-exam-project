@@ -638,6 +638,173 @@ def task_multimodal_verification(file_id: str, filepath: str, page_range: str = 
         update_db_status(file_id, "Error", error_msg=error_msg)
 
 
+def task_smart_review(file_ids: list, model_type: str = "flash") -> dict:
+    """
+    지능형 데이터 검증: 추출된 JSON 데이터를 규칙+AI로 검증
+    - 규칙 검증: 선지 누락, 빈 발문, 문항번호 중복 등
+    - AI 검증: 데이터 흐름, 잘림/깨짐, 내용 이상 감지
+    Returns: {file_id: {issues: [...], summary: str}}
+    """
+    import google.generativeai as genai
+    import re
+
+    api_key = load_api_key()
+    if not api_key:
+        return {"error": "GOOGLE_API_KEY가 설정되지 않았습니다."}
+
+    genai.configure(api_key=api_key)
+
+    results = {}
+
+    for file_id in file_ids:
+        data = load_json_data(file_id)
+        if not data:
+            results[file_id] = {"issues": [{"type": "error", "msg": "JSON 데이터 없음"}], "summary": "데이터 없음"}
+            continue
+
+        questions = data.get("questions", [])
+        passages = data.get("passages", [])
+        item = get_item_by_id(file_id)
+        doc_name = item.get("filename", file_id) if item else file_id
+
+        issues = []
+
+        # ── 1단계: 규칙 기반 검증 ──
+        q_nums = []
+        for q in questions:
+            q_num = q.get("q_num", "?")
+            q_nums.append(str(q_num))
+            q_stem = q.get("q_stem", "") or ""
+            is_seo = "서술" in str(q_num)
+
+            # 발문 누락/너무 짧음
+            if not q_stem.strip():
+                issues.append({"type": "critical", "q_num": q_num, "msg": "발문(q_stem)이 비어 있음"})
+            elif len(q_stem) < 5:
+                issues.append({"type": "warning", "q_num": q_num, "msg": f"발문이 매우 짧음: '{q_stem}'"})
+
+            # 선지 검증 (서술형이 아닌 경우)
+            if not is_seo:
+                choice_count = sum(1 for i in range(1, 6) if (q.get(f"choice_{i}", "") or "").strip())
+                if choice_count == 0:
+                    issues.append({"type": "critical", "q_num": q_num, "msg": "선지가 모두 비어 있음 (서술형이면 문항번호에 '서술형' 표기 필요)"})
+                elif choice_count < 5:
+                    issues.append({"type": "warning", "q_num": q_num, "msg": f"선지 {choice_count}개만 있음 (5개 중 {5-choice_count}개 누락)"})
+
+                # 선지 번호 기호 확인
+                for i in range(1, 6):
+                    c = (q.get(f"choice_{i}", "") or "").strip()
+                    if c and not re.match(r'^[①②③④⑤\d]', c):
+                        issues.append({"type": "info", "q_num": q_num, "msg": f"선지 {i}에 번호 기호 없음: '{c[:30]}'"})
+
+            # 지문 연결 확인
+            pid = q.get("passage_id")
+            if pid:
+                matching = [p for p in passages if p.get("passage_id") == pid]
+                if not matching:
+                    issues.append({"type": "warning", "q_num": q_num, "msg": f"passage_id '{pid}' 에 해당하는 지문 없음"})
+
+        # 문항번호 중복 확인
+        from collections import Counter
+        dup_nums = [num for num, cnt in Counter(q_nums).items() if cnt > 1]
+        if dup_nums:
+            issues.append({"type": "critical", "q_num": "-", "msg": f"문항번호 중복: {', '.join(dup_nums)}"})
+
+        # 지문 검증
+        for p in passages:
+            content = p.get("passage_content", "") or ""
+            if not content.strip():
+                issues.append({"type": "warning", "q_num": "-", "msg": f"지문 {p.get('passage_id', '?')} 내용이 비어 있음"})
+            elif len(content) < 20:
+                issues.append({"type": "info", "q_num": "-", "msg": f"지문 {p.get('passage_id', '?')} 내용이 매우 짧음 ({len(content)}자)"})
+
+        # ── 2단계: AI 리뷰 ──
+        try:
+            # 데이터를 간결하게 요약하여 AI에 전달
+            q_summary = []
+            for q in questions:
+                choices = [q.get(f"choice_{i}", "") or "" for i in range(1, 6)]
+                q_summary.append({
+                    "번호": q.get("q_num"),
+                    "발문": (q.get("q_stem", "") or "")[:100],
+                    "보기": "있음" if q.get("reference_box") else "없음",
+                    "선지수": sum(1 for c in choices if c.strip()),
+                    "선지1": choices[0][:50] if choices[0] else "",
+                    "지문ID": q.get("passage_id"),
+                })
+
+            p_summary = []
+            for p in passages:
+                p_summary.append({
+                    "ID": p.get("passage_id"),
+                    "내용미리보기": (p.get("passage_content", "") or "")[:80],
+                    "길이": len(p.get("passage_content", "") or ""),
+                })
+
+            review_prompt = f"""다음은 국어 시험지에서 AI로 추출된 데이터입니다. 데이터 품질을 검수해주세요.
+
+## 문서: {doc_name}
+## 문항 ({len(questions)}개):
+{json.dumps(q_summary, ensure_ascii=False, indent=1)}
+
+## 지문 ({len(passages)}개):
+{json.dumps(p_summary, ensure_ascii=False, indent=1)}
+
+다음 관점에서 문제점을 찾아주세요:
+1. 발문이 잘려있거나 불완전한 문항
+2. 선지가 누락되거나 내용이 이상한 문항
+3. 보기가 있어야 할 것 같은데 없는 문항 (예: "다음 <보기>를..." 발문인데 보기 없음)
+4. 지문과 문항의 연결이 이상한 경우
+5. 문항번호 순서가 비정상적인 경우
+6. 서술형 문항인데 객관식으로 분류된 경우 또는 그 반대
+
+JSON 배열로 답해주세요. 문제가 없으면 빈 배열 [].
+각 항목: {{"q_num": "해당번호", "issue": "문제 설명"}}"""
+
+            model = genai.GenerativeModel(
+                'gemini-2.5-flash',
+                generation_config={"temperature": 0, "response_mime_type": "application/json"}
+            )
+            response = model.generate_content(review_prompt)
+
+            if response and response.text:
+                import json_repair
+                ai_issues = json_repair.loads(response.text)
+                if isinstance(ai_issues, list):
+                    for ai_issue in ai_issues:
+                        issues.append({
+                            "type": "ai",
+                            "q_num": ai_issue.get("q_num", "?"),
+                            "msg": ai_issue.get("issue", ""),
+                        })
+
+        except Exception as e:
+            issues.append({"type": "info", "q_num": "-", "msg": f"AI 리뷰 실행 불가: {str(e)[:50]}"})
+
+        # 요약 생성
+        critical = sum(1 for i in issues if i["type"] == "critical")
+        warning = sum(1 for i in issues if i["type"] == "warning")
+        ai_count = sum(1 for i in issues if i["type"] == "ai")
+        if critical > 0:
+            summary = f"심각 {critical}건, 경고 {warning}건, AI지적 {ai_count}건"
+        elif warning > 0:
+            summary = f"경고 {warning}건, AI지적 {ai_count}건"
+        elif ai_count > 0:
+            summary = f"AI지적 {ai_count}건"
+        else:
+            summary = "이상 없음"
+
+        results[file_id] = {
+            "issues": issues,
+            "summary": summary,
+            "doc_name": doc_name,
+            "q_count": len(questions),
+            "p_count": len(passages),
+        }
+
+    return results
+
+
 def task_generate_excel(file_id: str) -> Optional[str]:
     """
     Step 2: 엑셀 생성
