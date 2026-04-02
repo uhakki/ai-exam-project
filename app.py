@@ -977,9 +977,21 @@ elif selected == "데이터 처리":
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
-    # 스마트 검증 패널
-    with st.expander("스마트 검증 (AI 데이터 품질 검수)", expanded=False):
-        st.markdown("추출된 데이터를 규칙+AI로 검수합니다. 원본 PDF 대조 없이 데이터 자체의 품질을 빠르게 확인합니다.")
+    # 스마트 검증 패널 (세션 상태 기반 토글)
+    if "smart_review_open" not in st.session_state:
+        st.session_state["smart_review_open"] = False
+
+    sr_col1, sr_col2 = st.columns([5, 1])
+    with sr_col1:
+        st.markdown("#### 스마트 검증")
+    with sr_col2:
+        if st.button("열기" if not st.session_state["smart_review_open"] else "닫기", key="toggle_smart_review"):
+            st.session_state["smart_review_open"] = not st.session_state["smart_review_open"]
+            st.rerun()
+
+    if st.session_state["smart_review_open"]:
+        st.markdown('<div class="content-card">', unsafe_allow_html=True)
+        st.markdown("추출된 데이터를 **규칙+AI**로 검수합니다. 원본 PDF 대조 없이 데이터 품질을 빠르게 확인합니다.")
         all_db_for_review = get_db()
         extracted_docs = [d for d in all_db_for_review if d.get('status') in ('Extracted', 'Modified', 'Done')]
 
@@ -987,7 +999,6 @@ elif selected == "데이터 처리":
             st.info("추출 완료된 문서가 없습니다.")
         else:
             review_options = {format_doc_label(d): d['file_id'] for d in extracted_docs}
-            # 검수 완료/미완료 구분
             reviewed_ids = set(st.session_state.get("smart_review_results", {}).keys())
             reviewed_labels = [k for k, v in review_options.items() if v in reviewed_ids]
             unreviewed_labels = [k for k, v in review_options.items() if v not in reviewed_ids]
@@ -1020,9 +1031,11 @@ elif selected == "데이터 처리":
                         from backend import task_smart_review
                         review_results = task_smart_review(file_ids)
                         st.session_state["smart_review_results"] = review_results
+                        st.rerun()
 
             # 결과 표시
-            if "smart_review_results" in st.session_state:
+            if "smart_review_results" in st.session_state and st.session_state["smart_review_results"]:
+                st.markdown("---")
                 review_results = st.session_state["smart_review_results"]
                 for fid, result in review_results.items():
                     if isinstance(result, dict) and "issues" in result:
@@ -1032,7 +1045,6 @@ elif selected == "데이터 처리":
                         q_count = result.get("q_count", 0)
                         p_count = result.get("p_count", 0)
 
-                        # 색상 결정
                         critical_count = sum(1 for i in issues if i["type"] == "critical")
                         if critical_count > 0:
                             badge_color = "#dc3545"
@@ -1057,6 +1069,8 @@ elif selected == "데이터 처리":
                                 st.markdown(f"&emsp;{icon} {q_label}{escape_html(issue['msg'])}")
                         else:
                             st.markdown("&emsp;✅ 이상 없음")
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
 
