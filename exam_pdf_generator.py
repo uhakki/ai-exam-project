@@ -30,27 +30,39 @@ from reportlab.platypus import (
 # 1. 폰트 등록
 # =============================================================================
 
-FONT_PATH = os.path.join(os.path.dirname(__file__), 'fonts', 'NotoSansKR-Regular.ttf')
+NOTO_FONT_PATH = os.path.join(os.path.dirname(__file__), 'fonts', 'NotoSansKR-Regular.ttf')
 FONT = 'Helvetica'  # fallback
 
 def _register_fonts():
-    """한글 폰트 등록"""
+    """한글 폰트 등록 — 바탕체 우선 (시험지 표준 서체)"""
     global FONT
-    if os.path.exists(FONT_PATH):
+    import platform
+
+    # 1) Windows: 바탕체 (시험지에서 가장 많이 사용)
+    if platform.system() == "Windows":
+        batang_path = 'C:/Windows/Fonts/batang.ttc'
+        if os.path.exists(batang_path):
+            try:
+                pdfmetrics.registerFont(TTFont('Batang', batang_path, subfontIndex=0))
+                FONT = 'Batang'
+                return
+            except Exception:
+                pass
+        # Windows fallback: 맑은 고딕
         try:
-            pdfmetrics.registerFont(TTFont('NotoSansKR', FONT_PATH))
+            pdfmetrics.registerFont(TTFont('MalgunGothic', 'C:/Windows/Fonts/malgun.ttf'))
+            FONT = 'MalgunGothic'
+            return
+        except Exception:
+            pass
+
+    # 2) Linux/Cloud: 번들된 Noto Sans KR
+    if os.path.exists(NOTO_FONT_PATH):
+        try:
+            pdfmetrics.registerFont(TTFont('NotoSansKR', NOTO_FONT_PATH))
             FONT = 'NotoSansKR'
         except Exception:
             pass
-    else:
-        # Windows fallback
-        import platform
-        if platform.system() == "Windows":
-            try:
-                pdfmetrics.registerFont(TTFont('MalgunGothic', 'C:/Windows/Fonts/malgun.ttf'))
-                FONT = 'MalgunGothic'
-            except Exception:
-                pass
 
 _register_fonts()
 
@@ -85,7 +97,7 @@ PAGE_W, PAGE_H = A4  # 210mm × 297mm
 
 MARGIN_LEFT = 10 * mm
 MARGIN_RIGHT = 10 * mm
-MARGIN_TOP = 12 * mm
+MARGIN_TOP = 18 * mm
 MARGIN_BOTTOM = 10 * mm
 
 GUTTER = 6 * mm
