@@ -553,11 +553,18 @@ def escape_html(text) -> str:
 
 
 def format_q_num(q_num) -> str:
-    """문항번호 표시 포맷: '서술형1' → '[서술형] 1번', 숫자 → '1번'"""
-    q_str = str(q_num)
-    m = re.match(r'^서술형\s*(\d+)$', q_str)
+    """문항번호 표시 포맷: 다양한 서술형 패턴 → '[서술형] N번', 숫자 → 'N번'"""
+    q_str = str(q_num).strip()
+    # 서술형1, 서술형 1, 서술형(1), (서술형1), 서술형_1, 서술 1 등
+    m = re.match(r'^[\(\[]?\s*서술형?\s*[\)\]]?\s*[\(\[]?\s*(\d+)\s*[\)\]]?$', q_str)
     if m:
         return f"[서술형] {m.group(1)}번"
+    # "서술형" 키워드가 포함된 기타 패턴
+    if '서술' in q_str:
+        nums = re.findall(r'\d+', q_str)
+        if nums:
+            return f"[서술형] {nums[0]}번"
+        return f"[서술형]"
     return f"{q_num}번"
 
 
@@ -1837,7 +1844,7 @@ elif selected == "시험지구성":
         st.markdown('<div class="content-card"><h4 style="margin:0 0 1rem 0;color:#212529;">시험지 정보</h4>', unsafe_allow_html=True)
 
         # 레이아웃 선택
-        layout_choice = st.radio("레이아웃", ["수능형", "내신형"], horizontal=True, key="layout_radio")
+        layout_choice = st.radio("레이아웃", ["수능형", "내신형", "기파랑 문해원", "미니멀"], horizontal=True, key="layout_radio")
         st.session_state.exam_info['layout_type'] = layout_choice
 
         if layout_choice == "수능형":
@@ -2044,9 +2051,43 @@ elif selected == "시험지구성":
 
                 st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
 
-                if st.button("전체 삭제", key="clear_all"):
-                    st.session_state.exam_selected_questions = []
-                    st.rerun()
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button("전체 삭제", key="clear_all"):
+                        st.session_state.exam_selected_questions = []
+                        st.rerun()
+                with btn_col2:
+                    edit_mode = st.checkbox("문항 텍스트 편집", key="edit_q_text", value=False)
+
+                # 문항 텍스트 편집 모드
+                if edit_mode:
+                    st.markdown("---")
+                    edit_idx = st.selectbox(
+                        "편집할 문항",
+                        range(len(st.session_state.exam_selected_questions)),
+                        format_func=lambda i: f"{i+1}번 - {(st.session_state.exam_selected_questions[i]['question_data'].get('q_stem', '') or '')[:40]}...",
+                        key="edit_q_idx"
+                    )
+                    if edit_idx is not None:
+                        eq = st.session_state.exam_selected_questions[edit_idx]
+                        eqd = eq['question_data']
+
+                        new_stem = st.text_area("발문", value=eqd.get('q_stem', ''), key=f"edit_stem_{edit_idx}", height=80)
+                        if new_stem != eqd.get('q_stem', ''):
+                            eqd['q_stem'] = new_stem
+
+                        new_ref = st.text_area("보기", value=eqd.get('reference_box', '') or '', key=f"edit_ref_{edit_idx}", height=60)
+                        if new_ref != (eqd.get('reference_box', '') or ''):
+                            eqd['reference_box'] = new_ref
+
+                        for ci in range(1, 6):
+                            ckey = f"choice_{ci}"
+                            cval = eqd.get(ckey, '') or ''
+                            if cval:
+                                new_c = st.text_input(f"선지 {ci}", value=cval, key=f"edit_c{ci}_{edit_idx}")
+                                if new_c != cval:
+                                    eqd[ckey] = new_c
+
             else:
                 st.info("왼쪽에서 문항을 선택해주세요.\n\n체크박스로 여러 문항을 한 번에 선택할 수 있습니다.")
 
@@ -2061,39 +2102,77 @@ elif selected == "시험지구성":
         with col1:
             preview_btn = st.button("시험지 미리보기", use_container_width=True)
         with col2:
-            layout_label = "수능형 2단" if st.session_state.exam_info['layout_type'] == '수능형' else "내신형 1단"
+            lt_label = st.session_state.exam_info.get('layout_type', '내신형')
+            col_label = "1단" if lt_label == "미니멀" else "2단"
+            layout_label = f"{lt_label} {col_label}"
             pdf_btn = st.button(f"PDF 생성 ({layout_label})", use_container_width=True, type="primary", disabled=len(st.session_state.exam_selected_questions) == 0)
 
         if preview_btn and st.session_state.exam_selected_questions:
             st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 
             info = st.session_state.exam_info
+            lt = info.get('layout_type', '내신형')
+            is_two_col = lt in ('수능형', '내신형', '기파랑 문해원')
+
             preview_parts = []
-            if info['layout_type'] == '수능형':
-                preview_parts.append(f'<div style="border:2px solid #333;padding:2rem;background:white;max-width:800px;margin:0 auto;font-family:Noto Sans KR,sans-serif;">')
+            container_style = "border:2px solid #333;padding:2rem;background:white;max-width:900px;margin:0 auto;font-family:'Batang','Noto Sans KR',serif;"
+            preview_parts.append(f'<div style="{container_style}">')
+
+            # 헤더
+            if lt == '수능형':
                 preview_parts.append(f'<div style="text-align:center;border-bottom:2px solid #333;padding-bottom:1rem;margin-bottom:1.5rem;">')
-                preview_parts.append(f'<p style="margin:0;color:#000;font-size:0.9rem;">{info["title"]}</p>')
-                preview_parts.append(f'<h2 style="margin:0.5rem 0;color:#000;">{info["subject"]}</h2>')
-                preview_parts.append(f'<p style="margin:0;color:#333;">{info["session"]} | {info["form_type"]}</p>')
+                preview_parts.append(f'<p style="margin:0;color:#000;font-size:0.9rem;">{info.get("title", "")}</p>')
+                preview_parts.append(f'<h2 style="margin:0.5rem 0;color:#000;">{info.get("subject", "")}</h2>')
+                preview_parts.append(f'<p style="margin:0;color:#333;">{info.get("session", "")} | {info.get("form_type", "")}</p>')
                 preview_parts.append('</div>')
-            else:
-                preview_parts.append(f'<div style="border:2px solid #333;padding:2rem;background:white;max-width:800px;margin:0 auto;font-family:Noto Sans KR,sans-serif;">')
-                preview_parts.append(f'<div style="text-align:center;border-bottom:2px solid #333;padding-bottom:1rem;margin-bottom:1.5rem;">')
-                preview_parts.append(f'<h2 style="margin:0;color:#000;">{info["school_name"] or "○○고등학교"}</h2>')
-                preview_parts.append(f'<h3 style="margin:0.5rem 0;color:#000;">{info["exam_name"] or "시험지"}</h3>')
-                preview_parts.append(f'<p style="margin:0;color:#333;">과목: {info["subject"]} | 학년: {info["grade"]} | 시험일: {info["date"]} | 시간: {info["time_limit"]}</p>')
+            elif lt == '기파랑 문해원':
+                preview_parts.append(f'<div style="text-align:center;border:1.5px solid #333;padding:1rem;margin-bottom:1.5rem;">')
+                preview_parts.append(f'<h2 style="margin:0;color:#000;">기파랑 문해원</h2>')
+                preview_parts.append(f'<h3 style="margin:0.5rem 0;color:#000;">{info.get("exam_name", "내신대비 문제")}</h3>')
+                exam_info_parts = [f'과목: {info.get("subject", "")}']
+                if info.get("grade"):
+                    exam_info_parts.append(f'학년: {info["grade"]}')
+                preview_parts.append(f'<p style="margin:0;color:#333;">{"  |  ".join(exam_info_parts)}</p>')
+                preview_parts.append('</div>')
+            elif lt == '미니멀':
+                preview_parts.append(f'<div style="text-align:center;padding-bottom:1rem;margin-bottom:1.5rem;">')
+                preview_parts.append(f'<h3 style="margin:0;color:#000;">{info.get("exam_name", "시험지")}</h3>')
+                preview_parts.append(f'<p style="margin:0;color:#333;">{info.get("subject", "")} {info.get("grade", "")}</p>')
+                preview_parts.append('</div>')
+            else:  # 내신형
+                preview_parts.append(f'<div style="text-align:center;border:1.5px solid #333;padding:1rem;margin-bottom:1.5rem;">')
+                preview_parts.append(f'<h2 style="margin:0;color:#000;">{info.get("school_name", "○○중학교")}</h2>')
+                preview_parts.append(f'<h3 style="margin:0.5rem 0;color:#000;">{info.get("exam_name", "시험지")}</h3>')
+                preview_parts.append(f'<p style="margin:0;color:#333;">과목: {info.get("subject", "")} | 학년: {info.get("grade", "")} | 시험일: {info.get("date", "")} | 시간: {info.get("time_limit", "")}</p>')
                 preview_parts.append('</div>')
 
+            # 문항 (2단이면 columns CSS, 1단이면 그냥)
+            if is_two_col:
+                preview_parts.append('<div style="column-count:2;column-gap:1.5rem;">')
+
+            keep_orig = st.session_state.get("keep_original_num", False)
             for idx, sq in enumerate(st.session_state.exam_selected_questions):
                 qd = sq['question_data']
-                choices_html = ''.join([f'<div style="margin:0.3rem 0;color:#000;">{qd.get(f"choice_{i}", "")}</div>' for i in range(1, 6) if qd.get(f'choice_{i}')])
-                ref_html = f'<div style="background:#f5f5f5;padding:0.75rem;margin:0.5rem 0;border-left:3px solid #333;color:#000;"><strong>[보기]</strong><br/>{qd.get("reference_box", "")}</div>' if qd.get('reference_box') else ''
+                choices_html = ''.join([f'<div style="margin:0.2rem 0;color:#000;font-size:0.9rem;">{escape_html(qd.get(f"choice_{i}", ""))}</div>' for i in range(1, 6) if qd.get(f'choice_{i}')])
+                ref_html = f'<div style="background:#f5f5f5;padding:0.5rem;margin:0.5rem 0;border:1px solid #ccc;font-size:0.85rem;color:#000;"><strong>&lt;보 기&gt;</strong><br/>{escape_html(qd.get("reference_box", ""))}</div>' if qd.get('reference_box') else ''
                 display_pts = sq.get('custom_score') or qd.get('points') or qd.get('score') or ''
-                points_html = f' <span style="color:#d93025;">[{display_pts}점]</span>' if display_pts else ''
-                preview_parts.append(f'<div style="margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px dashed #ccc;">')
-                preview_parts.append(f'<p style="margin:0;color:#000;"><strong>{idx+1}.</strong> {qd.get("q_stem", "")}{points_html}</p>')
+                points_html = f' <span style="color:#d93025;font-size:0.8rem;">[{display_pts}점]</span>' if display_pts else ''
+                q_num_display = qd.get('q_num', '?') if keep_orig else idx + 1
+                # 서술형 처리
+                q_num_str = str(q_num_display)
+                if '서술' in q_num_str:
+                    nums = re.findall(r'\d+', q_num_str)
+                    q_label = f"[서술형] {nums[0]}." if nums else "[서술형]"
+                else:
+                    q_label = f"{q_num_display}."
+
+                preview_parts.append(f'<div style="margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px dashed #ddd;break-inside:avoid;">')
+                preview_parts.append(f'<p style="margin:0;color:#000;font-size:0.95rem;"><strong>{q_label}</strong> {escape_html(qd.get("q_stem", ""))}{points_html}</p>')
                 preview_parts.append(ref_html)
-                preview_parts.append(f'<div style="margin-top:0.5rem;padding-left:1rem;">{choices_html}</div>')
+                preview_parts.append(f'<div style="margin-top:0.3rem;padding-left:1rem;">{choices_html}</div>')
+                preview_parts.append('</div>')
+
+            if is_two_col:
                 preview_parts.append('</div>')
 
             preview_parts.append('</div>')
@@ -2104,23 +2183,26 @@ elif selected == "시험지구성":
                 info = st.session_state.exam_info
 
                 # ExamPaperConfig 생성
+                layout_map = {"수능형": "suneung", "내신형": "school", "기파랑 문해원": "giparang", "미니멀": "minimal"}
+                pdf_layout = layout_map.get(info.get('layout_type', '내신형'), "school")
+
                 if info['layout_type'] == '수능형':
                     config = ExamPaperConfig(
-                        title=info['title'],
-                        subject=info['subject'],
-                        session=info['session'],
-                        form_type=info['form_type'],
+                        title=info.get('title', ''),
+                        subject=info.get('subject', '국어'),
+                        session=info.get('session', ''),
+                        form_type=info.get('form_type', ''),
                         layout_type="suneung",
                     )
                 else:
                     config = ExamPaperConfig(
-                        subject=info['subject'],
-                        school_name=info['school_name'],
-                        exam_name=info['exam_name'],
-                        grade=info['grade'],
-                        exam_date=info['date'],
-                        time_limit=info['time_limit'],
-                        layout_type="school",
+                        subject=info.get('subject', '국어'),
+                        school_name=info.get('school_name', '') if pdf_layout != 'giparang' else '기파랑 문해원',
+                        exam_name=info.get('exam_name', ''),
+                        grade=info.get('grade', ''),
+                        exam_date=info.get('date', ''),
+                        time_limit=info.get('time_limit', ''),
+                        layout_type=pdf_layout,
                     )
 
                 # 선택된 문항의 question_data 리스트 추출 (재번호 + 배점 적용)
