@@ -164,6 +164,17 @@ def task_extract_json(file_id: str, filepath: str, metadata: dict) -> None:
         write_log(file_id, f"[SAVE] JSON 데이터 저장 완료")
         update_db_status(file_id, "Extracted", progress=100)
 
+        # 자동 스마트 검증
+        try:
+            write_log(file_id, "[AUTO] 스마트 검증 실행 중...")
+            from smart_review import auto_review_after_extraction
+            review_result = auto_review_after_extraction(file_id)
+            review_summary = review_result.get("summary", "")
+            issue_count = len(review_result.get("issues", []))
+            write_log(file_id, f"[AUTO] 스마트 검증 완료: {review_summary} ({issue_count}건)")
+        except Exception as review_err:
+            write_log(file_id, f"[AUTO] 스마트 검증 스킵: {str(review_err)[:50]}")
+
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)}"
         write_log(file_id, f"[ERR] 오류 발생: {error_msg}")
@@ -639,6 +650,12 @@ def task_multimodal_verification(file_id: str, filepath: str, page_range: str = 
 
 
 def task_smart_review(file_ids: list, model_type: str = "flash") -> dict:
+    """레거시 호환 — smart_review.py로 위임"""
+    from smart_review import run_smart_review
+    return run_smart_review(file_ids, model_type)
+
+
+def _task_smart_review_legacy(file_ids: list, model_type: str = "flash") -> dict:
     """
     지능형 데이터 검증: 추출된 JSON 데이터를 규칙+AI로 검증
     - 규칙 검증: 선지 누락, 빈 발문, 문항번호 중복 등

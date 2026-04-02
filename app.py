@@ -1027,9 +1027,9 @@ elif selected == "데이터 처리":
                 if st.button("검수 실행", key="run_smart_review", type="primary",
                              disabled=len(selected_for_review) == 0):
                     file_ids = [review_options[name] for name in selected_for_review]
-                    with st.spinner(f"{len(file_ids)}개 문서 검수 중... (규칙 검증 + AI 리뷰)"):
-                        from backend import task_smart_review
-                        review_results = task_smart_review(file_ids)
+                    with st.spinner(f"{len(file_ids)}개 문서 AI 검수 중... (과거 패턴 참조 + 지능형 분석)"):
+                        from smart_review import run_smart_review
+                        review_results = run_smart_review(file_ids)
                         st.session_state["smart_review_results"] = review_results
                         st.rerun()
 
@@ -1062,13 +1062,31 @@ elif selected == "데이터 처리":
                         """, unsafe_allow_html=True)
 
                         if issues:
-                            type_icons = {"critical": "🔴", "warning": "🟡", "ai": "🤖", "info": "ℹ️", "error": "❌"}
+                            sev_icons = {"critical": "🔴", "warning": "🟡", "info": "ℹ️"}
                             for issue in issues:
-                                icon = type_icons.get(issue["type"], "•")
+                                icon = sev_icons.get(issue.get("severity", "info"), "•")
                                 q_label = f"[{issue.get('q_num', '')}] " if issue.get('q_num', '-') != '-' else ""
-                                st.markdown(f"&emsp;{icon} {q_label}{escape_html(issue['msg'])}")
+                                desc = issue.get("description", "") or issue.get("msg", "")
+                                itype = issue.get("issue_type", "")
+                                type_tag = f"<span style='color:#6c757d;font-size:0.8rem;'>({itype})</span> " if itype else ""
+                                st.markdown(f"&emsp;{icon} {q_label}{type_tag}{escape_html(desc)}", unsafe_allow_html=True)
                         else:
                             st.markdown("&emsp;✅ 이상 없음")
+
+            # 축적된 오류 패턴 통계
+            st.markdown("---")
+            st.markdown("**축적된 오류 패턴** (검증할수록 정확도 향상)")
+            try:
+                from smart_review import get_pattern_stats
+                stats = get_pattern_stats()
+                if stats["total_patterns"] > 0:
+                    st.markdown(f"패턴 {stats['total_patterns']}종, 총 {stats['total_occurrences']}회 발견")
+                    for ptype, cnt in stats["top_types"]:
+                        st.markdown(f"&emsp;• **{ptype}**: {cnt}건")
+                else:
+                    st.markdown("아직 축적된 패턴이 없습니다. 검수를 실행하면 자동으로 쌓입니다.")
+            except Exception:
+                st.markdown("패턴 데이터 로드 불가")
 
         st.markdown('</div>', unsafe_allow_html=True)
 
