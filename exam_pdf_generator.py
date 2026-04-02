@@ -710,16 +710,23 @@ def build_reference_box(content_text, col_width, styles=None):
     styles = styles or STYLES
     inner_elements = []
 
+    # 보기 박스 내부 폭 계산 (패딩 고려)
+    inner_width = col_width - 16 * mm  # 좌우 마진 + 패딩
+
     # 제목
     inner_elements.append(Paragraph('&lt;보 기&gt;', styles['box_title']))
 
-    # 본문
+    # 본문 — 긴 텍스트를 문단별로 분리하여 넘침 방지
     processed = preprocess_passage(content_text)
-    inner_elements.append(Paragraph(processed, styles['box_body']))
+    paragraphs = processed.split('<br/><br/>')
+    for para in paragraphs:
+        para = para.strip()
+        if para:
+            inner_elements.append(Paragraph(para, styles['box_body']))
 
     box_table = Table(
         [[inner_elements]],
-        colWidths=[col_width - 12 * mm],
+        colWidths=[inner_width],
     )
     box_table.setStyle(TableStyle([
         ('BOX', (0, 0), (-1, -1), 0.8, black),
