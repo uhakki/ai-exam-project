@@ -987,15 +987,25 @@ elif selected == "데이터 처리":
             st.info("추출 완료된 문서가 없습니다.")
         else:
             review_options = {format_doc_label(d): d['file_id'] for d in extracted_docs}
-            sel_col1, sel_col2 = st.columns([4, 1])
+            # 검수 완료/미완료 구분
+            reviewed_ids = set(st.session_state.get("smart_review_results", {}).keys())
+            reviewed_labels = [k for k, v in review_options.items() if v in reviewed_ids]
+            unreviewed_labels = [k for k, v in review_options.items() if v not in reviewed_ids]
+
+            sel_col1, sel_col2, sel_col3 = st.columns([4, 1, 1])
             with sel_col1:
                 selected_for_review = st.multiselect(
-                    "검수할 문서 선택",
+                    f"검수할 문서 선택 (미검수 {len(unreviewed_labels)}개 / 검수완료 {len(reviewed_labels)}개)",
                     list(review_options.keys()),
                     default=st.session_state.get("_review_default", []),
                     key="smart_review_select"
                 )
             with sel_col2:
+                st.markdown("<div style='height:1.7rem;'></div>", unsafe_allow_html=True)
+                if st.button("미검수만", key="select_unreviewed"):
+                    st.session_state["_review_default"] = unreviewed_labels
+                    st.rerun()
+            with sel_col3:
                 st.markdown("<div style='height:1.7rem;'></div>", unsafe_allow_html=True)
                 if st.button("전체 선택", key="select_all_review"):
                     st.session_state["_review_default"] = list(review_options.keys())
