@@ -191,15 +191,35 @@ def parse_json_with_repair(text: str) -> list:
 
 
 # 재시도 가능한 예외 타입들
+class CopyrightBlockError(Exception):
+    """Gemini가 저작권으로 인해 응답을 거부한 경우 (재시도 불필요)"""
+    pass
+
+
+# 재시도 가능한 예외 (네트워크/서버 오류만)
 RETRYABLE_EXCEPTIONS = (
-    Exception,  # 일반적인 예외도 포함 (네트워크 오류 등)
+    ConnectionError,
+    TimeoutError,
+    OSError,
 )
+
+# 재시도하면 안 되는 예외 (저작권 거부 등)
+def _should_retry(exception):
+    """저작권 거부/콘텐츠 차단은 재시도 불필요"""
+    err_str = str(exception).lower()
+    if 'finish_reason' in err_str and ('4' in err_str or 'copyrighted' in err_str):
+        return False
+    if isinstance(exception, CopyrightBlockError):
+        return False
+    if isinstance(exception, ValueError) and 'copyrighted' in err_str:
+        return False
+    return True
 
 
 @retry(
-    retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
-    wait=wait_exponential(multiplier=2, min=4, max=120),  # 4초, 8초, 16초... 최대 120초
-    stop=stop_after_attempt(3),  # 최대 3회 재시도
+    retry=lambda retry_state: _should_retry(retry_state.outcome.exception()) if retry_state.outcome and retry_state.outcome.failed else False,
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    stop=stop_after_attempt(3),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True
 )
@@ -239,6 +259,12 @@ def _call_gemini_api(image_path: Path) -> str:
             [uploaded_file, USER_PROMPT],
             request_options={"timeout": 300}  # 5분 타임아웃
         )
+
+        # 저작권 거부 감지 (finish_reason=4)
+        if response.candidates and response.candidates[0].finish_reason == 4:
+            raise CopyrightBlockError(
+                f"Gemini가 저작권 콘텐츠로 인식하여 거부 (finish_reason=4). 이 페이지는 건너뜁니다."
+            )
 
         return response.text
 
