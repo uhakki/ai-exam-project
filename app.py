@@ -1511,14 +1511,22 @@ elif selected == "문서 뷰어":
                         pid_to_pm[q_pid]['questions'].append(q)
                         matched = True
 
-                    # 2차 fallback: 문항 범위 매칭
+                    # 2차 fallback: 문항 범위 매칭 (숫자 문항번호만)
                     if not matched:
-                        for pm in passage_map:
-                            if pm['q_start'] and pm['q_end']:
-                                if pm['q_start'] <= q_num <= pm['q_end']:
-                                    pm['questions'].append(q)
-                                    matched = True
-                                    break
+                        try:
+                            q_num_int = int(q_num) if str(q_num).isdigit() else None
+                        except (ValueError, TypeError):
+                            q_num_int = None
+                        if q_num_int is not None:
+                            for pm in passage_map:
+                                if pm['q_start'] and pm['q_end']:
+                                    try:
+                                        if int(pm['q_start']) <= q_num_int <= int(pm['q_end']):
+                                            pm['questions'].append(q)
+                                            matched = True
+                                            break
+                                    except (ValueError, TypeError):
+                                        continue
 
                     # 3차 fallback: 같은 페이지 기준 (하위호환)
                     if not matched:
