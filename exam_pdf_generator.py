@@ -313,15 +313,20 @@ def draw_footer(canvas, doc, config):
     page_w, page_h = A4
     page_num = doc.page
 
+    # 구분선
+    footer_line_y = MARGIN_BOTTOM + FOOTER_H - 2 * mm
+    canvas.setLineWidth(0.3)
+    canvas.line(MARGIN_LEFT, footer_line_y, page_w - MARGIN_RIGHT, footer_line_y)
+
     # 페이지 번호 (중앙)
     canvas.setFont(FONT, 9)
     footer_y = MARGIN_BOTTOM + 4 * mm
-    canvas.drawCentredString(page_w / 2, footer_y, f"{page_num}")
+    canvas.drawCentredString(page_w / 2, footer_y, f"- {page_num} -")
 
-    # 저작권 문구 (하단 우측)
+    # 저작권 문구 (하단 중앙)
     canvas.setFont(FONT, 6.5)
-    canvas.drawRightString(
-        page_w - MARGIN_RIGHT,
+    canvas.drawCentredString(
+        page_w / 2,
         MARGIN_BOTTOM,
         "이 문제지에 관한 저작권은 한국교육과정평가원에 있습니다."
     )
@@ -330,29 +335,58 @@ def draw_footer(canvas, doc, config):
 
 
 def draw_school_header(canvas, doc, config):
-    """내신용 헤더"""
+    """내신용 헤더 — 학교 시험지 공식 양식"""
     canvas.saveState()
 
     page_w, page_h = A4
     cx = page_w / 2
+    left_x = MARGIN_LEFT
+    right_x = page_w - MARGIN_RIGHT
+    top_y = page_h - MARGIN_TOP
 
-    # 학교명
+    # --- 상단 외곽선 ---
+    header_bottom = top_y - FIRST_PAGE_HEADER_H + 2 * mm
+    canvas.setLineWidth(1.2)
+    canvas.rect(left_x, header_bottom, right_x - left_x, top_y - header_bottom)
+
+    # --- 학교명 (상단 중앙) ---
     canvas.setFont(FONT, 16)
-    canvas.drawCentredString(cx, page_h - MARGIN_TOP - 10 * mm, config.school_name or "○○고등학교")
+    canvas.drawCentredString(cx, top_y - 9 * mm, config.school_name or "○○중학교")
 
-    # 시험명
-    canvas.setFont(FONT, 13)
-    canvas.drawCentredString(cx, page_h - MARGIN_TOP - 18 * mm, config.exam_name or "시험지")
+    # --- 시험명 (중앙) ---
+    canvas.setFont(FONT, 14)
+    exam_title = config.exam_name or "시험지"
+    canvas.drawCentredString(cx, top_y - 17 * mm, exam_title)
 
-    # 정보
+    # --- 좌측: 과목/학년 정보 ---
     canvas.setFont(FONT, 9)
-    info = f"과목: {config.subject}  |  학년: {config.grade}  |  시험일: {config.exam_date}  |  시간: {config.time_limit}"
-    canvas.drawCentredString(cx, page_h - MARGIN_TOP - 26 * mm, info)
+    info_y = top_y - 25 * mm
+    grade_text = f"{config.grade}" if config.grade else ""
+    subject_text = f"과목: {config.subject}"
+    if grade_text:
+        subject_text += f"  |  학년: {grade_text}"
+    if config.exam_date:
+        subject_text += f"  |  시험일: {config.exam_date}"
+    if config.time_limit:
+        subject_text += f"  |  시간: {config.time_limit}"
+    canvas.drawString(left_x + 5 * mm, info_y, subject_text)
 
-    # 구분선
-    line_y = page_h - MARGIN_TOP - FIRST_PAGE_HEADER_H + 2 * mm
+    # --- 우측: 학번/이름 기입란 ---
+    box_right = right_x - 5 * mm
+    box_w = 60 * mm
+    box_h = 8 * mm
+    box_x = box_right - box_w
+    box_y = top_y - 27 * mm
+
     canvas.setLineWidth(0.5)
-    canvas.line(MARGIN_LEFT, line_y, page_w - MARGIN_RIGHT, line_y)
+    # 학번 칸
+    canvas.rect(box_x, box_y, box_w / 2, box_h)
+    canvas.setFont(FONT, 8)
+    canvas.drawString(box_x + 2 * mm, box_y + box_h - 3 * mm, "학번")
+
+    # 이름 칸
+    canvas.rect(box_x + box_w / 2, box_y, box_w / 2, box_h)
+    canvas.drawString(box_x + box_w / 2 + 2 * mm, box_y + box_h - 3 * mm, "이름")
 
     canvas.restoreState()
     draw_school_footer(canvas, doc, config)
@@ -367,9 +401,13 @@ def draw_school_normal(canvas, doc, config):
     cx = page_w / 2
     header_y = page_h - MARGIN_TOP - 12 * mm
 
+    canvas.setFont(FONT, 9)
+    canvas.drawString(MARGIN_LEFT + 3 * mm, header_y, f"- {page_num} -")
     canvas.setFont(FONT, 10)
-    canvas.drawString(MARGIN_LEFT + 5 * mm, header_y, str(page_num))
-    canvas.drawCentredString(cx, header_y, config.subject)
+    school_short = (config.school_name or "")
+    canvas.drawCentredString(cx, header_y, f"{config.subject}")
+    canvas.setFont(FONT, 9)
+    canvas.drawRightString(page_w - MARGIN_RIGHT - 3 * mm, header_y, school_short)
 
     line_y = page_h - MARGIN_TOP - NORMAL_HEADER_H + 2 * mm
     canvas.setLineWidth(0.5)
@@ -383,8 +421,16 @@ def draw_school_footer(canvas, doc, config):
     """내신용 푸터"""
     canvas.saveState()
     page_w = A4[0]
+
+    # 구분선
+    footer_line_y = MARGIN_BOTTOM + FOOTER_H - 2 * mm
+    canvas.setLineWidth(0.3)
+    canvas.line(MARGIN_LEFT, footer_line_y, page_w - MARGIN_RIGHT, footer_line_y)
+
+    # 페이지 번호
     canvas.setFont(FONT, 9)
-    canvas.drawCentredString(page_w / 2, MARGIN_BOTTOM + 4 * mm, f"{doc.page}")
+    canvas.drawCentredString(page_w / 2, MARGIN_BOTTOM + 4 * mm, f"- {doc.page} -")
+
     canvas.restoreState()
 
 
@@ -510,10 +556,9 @@ def _build_question_elements(q_data, col_width, styles=None):
     # 발문
     q_num = q_data.get('q_num', '?')
     q_stem = q_data.get('q_stem', '') or ''
-    stem_text = f"<b>{q_num}.</b> {preprocess_passage(q_stem)}"
     points = q_data.get('score') or q_data.get('points')
-    if points:
-        stem_text += f" [{points}점]"
+    points_str = f"  <font size='7'>[{points}점]</font>" if points else ""
+    stem_text = f"<b>{q_num}.</b> {preprocess_passage(q_stem)}{points_str}"
     elements.append(Paragraph(stem_text, styles['question_stem']))
 
     # 보기 박스

@@ -1349,7 +1349,9 @@ elif selected == "문서 뷰어":
                     tmpl_cfg = template_to_config(selected_tmpl, overrides)
                     sorted_questions = sorted(questions, key=lambda x: int(x.get('q_num', 0)) if str(x.get('q_num', 0)).isdigit() else 0)
                     pdf_bytes = generate_exam_pdf_from_template(tmpl_cfg, sorted_questions, passages)
-                    fname = f"시험지_{meta.get('exam_type', '')}_{meta.get('subject', '국어')}.pdf".replace(' ', '_')
+                    fname_parts = [meta.get('year', ''), meta.get('semester', ''), meta.get('exam_type', ''), meta.get('school', ''), meta.get('grade', ''), meta.get('subject', '국어')]
+                    fname = "_".join(p for p in fname_parts if p) + ".pdf"
+                    fname = fname.replace(' ', '_')
                     st.download_button("PDF 다운로드", data=pdf_bytes, file_name=fname, mime="application/pdf", use_container_width=True)
                     st.success(f"PDF 생성 완료! ({len(questions)}문항, {len(passages)}지문) — 양식: {viewer_tmpl_name}")
 
@@ -2136,7 +2138,9 @@ elif selected == "시험지구성":
                 # PDF 생성
                 pdf_bytes = generate_exam_pdf(config, selected_q_list, all_passages)
 
-                file_name = f"시험지_{info['subject']}.pdf".replace(' ', '_')
+                fname_parts = [info.get('school_name', ''), info.get('exam_name', ''), info.get('grade', ''), info.get('subject', '국어')]
+                file_name = "_".join(p for p in fname_parts if p) + "_시험지.pdf"
+                file_name = file_name.replace(' ', '_')
                 st.download_button(
                     label="PDF 다운로드",
                     data=pdf_bytes,
