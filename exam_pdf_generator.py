@@ -212,11 +212,21 @@ SCHOOL_STYLES = _build_school_styles()
 # 4. 텍스트 전처리
 # =============================================================================
 
+def _clean_none(text):
+    """None, 'None', 'None.' 등을 빈 문자열로 정리"""
+    if text is None:
+        return ''
+    text = str(text).strip()
+    if text.lower() in ('none', 'none.', 'null', 'n/a'):
+        return ''
+    return text
+
+
 def escape_xml(text):
     """XML 특수문자 이스케이프 (reportlab Paragraph용)"""
+    text = _clean_none(text)
     if not text:
         return ''
-    text = str(text)
     text = text.replace('&', '&amp;')
     text = text.replace('<', '&lt;')
     text = text.replace('>', '&gt;')
@@ -225,6 +235,7 @@ def escape_xml(text):
 
 def preprocess_passage(text):
     """지문/문항 텍스트를 Paragraph-safe HTML로 변환"""
+    text = _clean_none(text)
     if not text:
         return ''
     # 먼저 XML 이스케이프
@@ -708,7 +719,7 @@ def build_reference_box(content_text, col_width, styles=None):
 
     box_table = Table(
         [[inner_elements]],
-        colWidths=[col_width - 8 * mm],
+        colWidths=[col_width - 12 * mm],
     )
     box_table.setStyle(TableStyle([
         ('BOX', (0, 0), (-1, -1), 0.8, black),
@@ -729,7 +740,7 @@ def _build_question_elements(q_data, col_width, styles=None):
 
     # 발문
     q_num = q_data.get('q_num', '?')
-    q_stem = q_data.get('q_stem', '') or ''
+    q_stem = _clean_none(q_data.get('q_stem', ''))
     points = q_data.get('score') or q_data.get('points')
     points_str = f"  <font size='7'>[{points}점]</font>" if points else ""
 
@@ -747,7 +758,7 @@ def _build_question_elements(q_data, col_width, styles=None):
     elements.append(Paragraph(stem_text, styles['question_stem']))
 
     # 보기 박스
-    ref = q_data.get('reference_box', '') or ''
+    ref = _clean_none(q_data.get('reference_box', ''))
     if ref.strip():
         elements.append(Spacer(1, 1.5 * mm))
         elements.append(build_reference_box(ref, col_width, styles))
@@ -755,7 +766,7 @@ def _build_question_elements(q_data, col_width, styles=None):
 
     # 선택지
     for i in range(1, 6):
-        choice_text = q_data.get(f'choice_{i}', '') or ''
+        choice_text = _clean_none(q_data.get(f'choice_{i}', ''))
         if choice_text:
             elements.append(Paragraph(
                 preprocess_passage(choice_text),
@@ -795,7 +806,7 @@ def _build_passage_map(all_passages):
         pages.sort(key=lambda x: x.get('page_num', 0))
         texts = []
         for p in pages:
-            content = p.get('passage_content', '')
+            content = _clean_none(p.get('passage_content', ''))
             if p.get('is_continued_from_prev') and texts:
                 content = content.lstrip()
                 if content.startswith('(이어서)'):
