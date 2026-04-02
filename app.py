@@ -551,6 +551,15 @@ def escape_html(text) -> str:
     return html_lib.escape(str(text))
 
 
+def format_q_num(q_num) -> str:
+    """문항번호 표시 포맷: '서술형1' → '[서술형] 1번', 숫자 → '1번'"""
+    q_str = str(q_num)
+    m = re.match(r'^서술형\s*(\d+)$', q_str)
+    if m:
+        return f"[서술형] {m.group(1)}번"
+    return f"{q_num}번"
+
+
 def format_doc_label(item: dict) -> str:
     """문서 선택 드롭다운용 통합 라벨 생성.
     예: '2024년 4월 고3 국어 모의고사 [추출완료]'
@@ -1535,7 +1544,7 @@ elif selected == "문서 뷰어":
                     ref_content = escape_html(q.get("reference_box", "")).replace('\n', '<br/>') if q.get('reference_box') else ""
                     ref_html = f'<div class="q-ref"><strong>&lt;보기&gt;</strong><div style="margin-top:0.5rem;">{ref_content}</div></div>' if ref_content else ""
                     q_stem = escape_html(q.get('q_stem', '')).replace('\n', '<br/>')
-                    card_html = f'<div class="q-card"><div><span class="q-num">{q.get("q_num", "?")}번</span><span class="q-category">{escape_html(q.get("category", ""))}</span></div><div class="q-stem">{q_stem}</div>{ref_html}<div style="margin-top:0.75rem;">{choices_html}</div></div>'
+                    card_html = f'<div class="q-card"><div><span class="q-num">{format_q_num(q.get("q_num", "?"))}</span><span class="q-category">{escape_html(q.get("category", ""))}</span></div><div class="q-stem">{q_stem}</div>{ref_html}<div style="margin-top:0.75rem;">{choices_html}</div></div>'
                     st.markdown(card_html, unsafe_allow_html=True)
 
             # === 지문별 뷰 ===
@@ -1558,7 +1567,7 @@ elif selected == "문서 뷰어":
                                 ref_content = escape_html(q.get("reference_box", "")).replace('\n', '<br/>') if q.get('reference_box') else ""
                                 ref_html = f'<div class="q-ref"><strong>&lt;보기&gt;</strong><div style="margin-top:0.5rem;">{ref_content}</div></div>' if ref_content else ""
                                 q_stem = escape_html(q.get('q_stem', '')).replace('\n', '<br/>')
-                                card_html = f'<div class="q-card"><span class="q-num">{q.get("q_num", "?")}번</span><div class="q-stem">{q_stem}</div>{ref_html}<div>{choices_html}</div></div>'
+                                card_html = f'<div class="q-card"><span class="q-num">{format_q_num(q.get("q_num", "?"))}</span><div class="q-stem">{q_stem}</div>{ref_html}<div>{choices_html}</div></div>'
                                 st.markdown(card_html, unsafe_allow_html=True)
 
 # =============================================================================
@@ -1924,7 +1933,7 @@ elif selected == "시험지구성":
                             q_id = f"{file_id}_{q.get('page_num',0)}_{q_num}_{q_idx}"
                             is_already = any(sq['id'] == q_id for sq in st.session_state.exam_selected_questions)
 
-                            label = f"{q_num}번 ({q_category}{score_str}) — {q_stem}"
+                            label = f"{format_q_num(q_num)} ({q_category}{score_str}) — {q_stem}"
                             if is_already:
                                 st.markdown(f"<div style='padding:4px 8px;background:#d4edda;border-radius:4px;margin-bottom:4px;font-size:0.82rem;color:#155724;'>✓ {escape_html(label)}</div>", unsafe_allow_html=True)
                             else:
@@ -1998,7 +2007,7 @@ elif selected == "시험지구성":
 
                     # 번호 표시: 재번호 → (원본)
                     if keep_original:
-                        num_display = f"<strong>{orig_num}번</strong>"
+                        num_display = f"<strong>{format_q_num(orig_num)}</strong>"
                     else:
                         num_display = f"<strong>{new_num}번</strong> <span style='color:#999;font-size:0.75rem;'>(원본:{orig_num})</span>"
 
@@ -2361,5 +2370,5 @@ elif selected == "문제은행":
                         score_str = f" | {score}점" if score else ""
 
                         st.markdown(
-                            f"**{q_num}번** ({cat}{score_str}{ans_str}) — {stem}..."
+                            f"**{format_q_num(q_num)}** ({cat}{score_str}{ans_str}) — {stem}..."
                         )

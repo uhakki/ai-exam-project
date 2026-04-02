@@ -732,7 +732,16 @@ def _build_question_elements(q_data, col_width, styles=None):
     q_stem = q_data.get('q_stem', '') or ''
     points = q_data.get('score') or q_data.get('points')
     points_str = f"  <font size='7'>[{points}점]</font>" if points else ""
-    stem_text = f"<b>{q_num}.</b> {preprocess_passage(q_stem)}{points_str}"
+
+    # 서술형 문항 번호 처리: "서술형1" → "[서술형] 1." 형태로 표시
+    q_num_str = str(q_num)
+    import re as _re
+    seo_match = _re.match(r'^서술형\s*(\d+)$', q_num_str)
+    if seo_match:
+        seo_num = seo_match.group(1)
+        stem_text = f"<b>[서술형] {seo_num}.</b> {preprocess_passage(q_stem)}{points_str}"
+    else:
+        stem_text = f"<b>{q_num}.</b> {preprocess_passage(q_stem)}{points_str}"
     elements.append(Paragraph(stem_text, styles['question_stem']))
 
     # 보기 박스
